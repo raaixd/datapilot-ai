@@ -42,6 +42,35 @@ class TestConceptMatching(unittest.TestCase):
         self.assertEqual(numeric_only, ["sales_amount"])
 
 
+class TestPluralization(unittest.TestCase):
+    """Round-3 fix: 'category'/'categories', 'product'/'products' etc. must
+    compare equal for matching purposes -- found via real orchestrator
+    testing where 'Which product categories are declining?' failed to
+    resolve a dimension because 'categories' didn't literally contain the
+    substring 'category'."""
+
+    def test_normalize_singularizes_plural_words(self):
+        self.assertEqual(normalize("categories"), "category")
+        self.assertEqual(normalize("products"), "product")
+        self.assertEqual(normalize("regions"), "region")
+        self.assertEqual(normalize("boxes"), "box")
+
+    def test_normalize_leaves_non_plural_words_alone(self):
+        self.assertEqual(normalize("revenue"), "revenue")
+        self.assertEqual(normalize("status"), "status")  # ends in -us, not a plural
+        self.assertEqual(normalize("gas"), "gas")  # short word, left alone
+
+    def test_mentioned_in_text_matches_plural_question_to_singular_column(self):
+        self.assertTrue(mentioned_in_text("product_category", "which product categories are best"))
+        self.assertTrue(mentioned_in_text("region", "compare across regions"))
+
+    def test_concept_synonym_matches_plural_form_in_question(self):
+        # "category" (singular synonym) should match "categories" (plural, in question)
+        columns = [("product_category", "TEXT")]
+        matches = find_columns_for_concept(columns, "category", None)
+        self.assertEqual(matches, ["product_category"])
+
+
 class TestLimitExtraction(unittest.TestCase):
     def test_top_n_digit(self):
         self.assertEqual(extract_limit("show the top 5 products"), 5)

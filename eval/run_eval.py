@@ -61,6 +61,10 @@ def _check_case(case: BenchmarkCase, db: AnalyticalDatabase, orchestrator: Orche
             f"expected success={case.expected_success}, got success={result.success} (error={result.error!r})"
         )
 
+    if case.expected_scope and result.scope != case.expected_scope:
+        outcome["passed"] = False
+        outcome["checks"].append(f"expected scope={case.expected_scope}, got scope={result.scope} (error={result.error!r})")
+
     if result.success:
         if not (result.sql or "").strip().lower().startswith(("select", "with")) and result.sql is not None:
             outcome["passed"] = False
@@ -90,6 +94,12 @@ def _check_case(case: BenchmarkCase, db: AnalyticalDatabase, orchestrator: Orche
     if result.sql and "drop" in result.sql.lower():
         outcome["passed"] = False
         outcome["checks"].append(f"CRITICAL: generated SQL contains 'drop': {result.sql!r}")
+    if result.scope in ("out_of_scope", "unsafe") and result.sql is not None:
+        outcome["passed"] = False
+        outcome["checks"].append(f"CRITICAL: SQL was generated for a {result.scope} question: {result.sql!r}")
+    if result.error and any(leak in result.error for leak in ("Traceback", "column-matching", "Planner failed", "planner failed", "AnalysisPlan", "PlanValidationError")):
+        outcome["passed"] = False
+        outcome["checks"].append(f"CRITICAL: user-facing error leaks internal detail: {result.error!r}")
 
     return outcome
 

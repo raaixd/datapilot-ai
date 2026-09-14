@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from app.data.database import TableSchema
 from app.llm.base import LLMClient
 from app.llm.prompts import PLANNER_SYSTEM_PROMPT, build_planner_user_prompt
+from app.rag.retriever import retrieve
 
 VALID_INTENTS = {
     "aggregation", "ranking", "grouped_comparison", "trend", "trend_by_dimension",
@@ -15,7 +16,6 @@ VALID_INTENTS = {
 VALID_AGGREGATIONS = {"sum", "avg", "min", "max", "count", None}
 VALID_SORT_DIRECTIONS = {"asc", "desc", None}
 VALID_CHART_TYPES = {"bar", "line", "pie", "scatter", "table"}
-LEGACY_INTENT_ALIASES = {"comparison": "grouped_comparison", "distribution": "grouped_comparison"}
 
 
 class PlanValidationError(ValueError):
@@ -45,6 +45,8 @@ class AnalysisPlan:
     time_granularity: str = "month"
     metric_alias: str | None = None
     ambiguous_options: list[str] = field(default_factory=list)
+    question: str = ""  # the original question this plan was built for (provenance, and used by
+                         # SQLGenerator to re-run retrieval for the SQL-generation prompt)
 
     @property
     def is_answerable(self) -> bool:
@@ -87,7 +89,7 @@ def describe_schema_text(schema: dict[str, TableSchema]) -> str:
         for col_name, col_type in table.columns:
             samples = table.column_samples.get(col_name) if table.column_samples else None
             if samples:
-                lines.append(f"- {col_name} ({col_type}) values: {json.dumps(samples)}")
+                lines.append(f"- {col_name} ({col_type}) values: [{', '.join(samples)}]")
             else:
                 lines.append(f"- {col_name} ({col_type})")
     return "\n".join(lines) if lines else "(no tables loaded)"
@@ -99,7 +101,8 @@ class AnalysisPlanner:
 
     def plan(self, question: str, schema: dict[str, TableSchema]) -> AnalysisPlan:
         schema_text = describe_schema_text(schema)
-        user_prompt = build_planner_user_prompt(question, schema_text)
+        retrieved = retrieve(question, schema)
+        user_prompt = build_planner_user_prompt(question, schema_text, retrieved.to_prompt_text())
         raw = self._llm.complete(PLANNER_SYSTEM_PROMPT, user_prompt)
         try:
             data = json.loads(_strip_code_fence(raw))
@@ -108,10 +111,11 @@ class AnalysisPlanner:
                 intent="unsupported", table=None, metric_column=None, aggregation=None,
                 dimension_column=None, date_column=None, filters=[], chart_type="table",
                 clarification_needed="The planning step returned a response that could not be parsed as JSON.",
+                question=question,
             )
 
         plan = AnalysisPlan(
-            intent=LEGACY_INTENT_ALIASES.get(data.get("intent"), data.get("intent", "unsupported")),
+            intent=data.get("intent", "unsupported"),
             table=data.get("table"),
             metric_column=data.get("metric_column"),
             aggregation=data.get("aggregation"),
@@ -126,6 +130,7 @@ class AnalysisPlanner:
             time_granularity=data.get("time_granularity", "month"),
             metric_alias=data.get("metric_alias"),
             ambiguous_options=data.get("ambiguous_options") or [],
+            question=question,
         )
 
         try:
@@ -136,6 +141,7 @@ class AnalysisPlanner:
                 dimension_column=plan.dimension_column, date_column=plan.date_column, filters=[],
                 chart_type="table",
                 clarification_needed=f"The analysis plan failed validation and was discarded: {exc}",
+                question=question,
             )
         return plan
 

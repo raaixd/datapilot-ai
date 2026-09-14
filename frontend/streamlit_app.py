@@ -22,6 +22,8 @@ relate" section.
 """
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 import streamlit as st
 
@@ -33,10 +35,11 @@ from app.data.loader import load_tabular_file
 from app.data.profiler import DataProfiler
 from app.llm.factory import build_llm_client
 from app.reports.markdown_report import render_markdown_report
-from app.reports.pdf_report import render_pdf_report_bytes
+from app.reports.pdf_report import render_pdf_report
 from app.visualization.charts import build_chart
 
 configure_logging()
+logger = logging.getLogger(__name__)
 st.set_page_config(page_title="DataPilot AI", page_icon="\U0001F4CA", layout="wide")
 
 EXAMPLE_QUESTIONS = [
@@ -50,9 +53,17 @@ EXAMPLE_QUESTIONS = [
 
 
 @st.cache_resource
-def _get_backend():
+def _get_shared_resources():
+    """Process-wide singletons that hold NO user data and are safe to share
+    across every session on this Streamlit server: settings, the LLM client
+    (stateless -- it just calls an API/runs local rules), and the profiler
+    (stateless -- pure functions over whatever DataFrame it's given).
+    `st.cache_resource` is explicitly a GLOBAL cache shared by every user
+    connected to this server process -- so nothing session-specific (the
+    loaded dataset, the database connection) may live here. See
+    `_get_session_backend()` below for what must NOT be cached this way,
+    and README "Multi-user and session isolation" for the full writeup."""
     settings = get_settings()
-    db = AnalyticalDatabase(backend=settings.database_backend, path=":memory:")
     try:
         llm = build_llm_client(settings)
     except Exception as exc:
@@ -61,11 +72,29 @@ def _get_backend():
             "Check your .env file against .env.example, or set LLM_PROVIDER=mock to run without any API key."
         )
         st.stop()
-    orchestrator = Orchestrator(db, llm, max_result_rows=settings.max_result_rows, settings=settings)
-    return db, orchestrator, DataProfiler(), settings
+    return llm, DataProfiler(), settings
 
 
-db, orchestrator, profiler, settings = _get_backend()
+def _get_session_backend():
+    """Per-session database + orchestrator, stored in `st.session_state`
+    (which IS session-isolated by Streamlit -- unlike `st.cache_resource`).
+    Uses `AnalyticalDatabase.create_session_database()`: a thread-safe,
+    file-backed temp database with a unique path per session, so this
+    session's data cannot leak into, or be overwritten by, another
+    session's (see app/data/database.py's module docstring and
+    tests/test_database_thread_safety.py for the underlying guarantee)."""
+    if "session_db" not in st.session_state:
+        llm, _profiler, settings = _get_shared_resources()
+        db = AnalyticalDatabase.create_session_database(backend=settings.database_backend)
+        orchestrator = Orchestrator(db, llm, max_result_rows=settings.max_result_rows, settings=settings)
+        st.session_state.session_db = db
+        st.session_state.session_orchestrator = orchestrator
+        logger.info("Created new session database for this Streamlit session: %s", db.path)
+    return st.session_state.session_db, st.session_state.session_orchestrator
+
+
+_llm, profiler, settings = _get_shared_resources()
+db, orchestrator = _get_session_backend()
 
 for key, default in [("history", []), ("profile", None), ("table_name", None), ("last_result", None)]:
     if key not in st.session_state:
@@ -149,26 +178,77 @@ else:
         st.success("No data quality issues detected.")
 
     st.subheader("Ask a question")
-    with st.expander("Example questions"):
-        for q in EXAMPLE_QUESTIONS:
-            if st.button(q, key=f"example_{q}"):
-                st.session_state["_pending_question"] = q
 
-    question = st.text_input(
-        "Business question",
-        value=st.session_state.pop("_pending_question", ""),
+    # -- Question input, rewritten (round 3) to fix a reported bug: the
+    # "Type a question first..." warning could appear even after typing a
+    # valid question. ROOT CAUSE ANALYSIS: this file requires `streamlit`,
+    # which is NOT installed in this project's dev sandbox (no network
+    # access -- see README "What has and hasn't been executed"), so I could
+    # not run this app and watch the bug happen live. I traced the code
+    # instead and found a specific, well-documented Streamlit anti-pattern:
+    # the previous version gave `st.text_input(...)` an inline
+    # `value=st.session_state.pop("_pending_question", "")` expression but
+    # NO explicit `key=`. Streamlit's widgets are only guaranteed to
+    # reliably preserve user-typed edits across reruns when they have a
+    # STABLE, explicit key and are not simultaneously fed a `value=`
+    # expression recomputed from other state on every script run -- mixing
+    # those two is exactly the pattern Streamlit's own docs warn causes
+    # inconsistent/reset widget values. The fix below uses the documented-
+    # safe alternative: a stable `key="question_input"`, and "fill this
+    # question in" (example buttons, follow-up buttons) is done via
+    # `on_click` CALLBACKS that write directly to
+    # `st.session_state["question_input"]` -- callbacks run and finish
+    # BEFORE the script body reruns and re-renders the widget, so there is
+    # no `value=` vs. typed-text race at all. The "Analyze" button also
+    # reads `st.session_state["question_input"]` directly rather than a
+    # local variable, removing any possibility of using a stale copy.
+    #
+    # This has NOT been confirmed against a live run of this exact file
+    # (see the note above) -- if the symptom recurs after this fix, enable
+    # "Show debug info" below and check whether `question_input` in the
+    # session-state snapshot matches what's actually in the input box; that
+    # will immediately show whether this widget-state issue or something
+    # else (e.g. a stale `orchestrator`/`profile` reference) is at fault.
+
+    def _use_question(q: str) -> None:
+        st.session_state["question_input"] = q
+
+    st.session_state.setdefault("question_input", "")
+
+    with st.expander("Example questions"):
+        cols = st.columns(2)
+        for i, q in enumerate(EXAMPLE_QUESTIONS):
+            with cols[i % 2]:
+                st.button(q, key=f"example_{q}", on_click=_use_question, args=(q,), use_container_width=True)
+
+    st.text_input(
+        "Business question", key="question_input",
         placeholder="What is the total revenue by product category?",
     )
+    debug_mode = st.checkbox("Show debug info", value=False, help="Developer diagnostics -- not for normal use.")
     ask = st.button("Analyze", type="primary")
 
-    if ask and not question.strip():
+    if debug_mode:
+        with st.expander("Debug: session state snapshot", expanded=True):
+            st.json({
+                "question_input": st.session_state.get("question_input"),
+                "ask_clicked_this_run": ask,
+                "history_length": len(st.session_state.history),
+                "has_last_result": st.session_state.last_result is not None,
+            })
+
+    current_question = st.session_state.get("question_input", "")
+
+    if ask and not current_question.strip():
         st.warning("Type a question first, or click one of the example questions above.")
 
-    if ask and question.strip():
+    if ask and current_question.strip():
         with st.spinner("Analyzing..."):
-            result = orchestrator.analyze(question, data_profile=profile)
-        st.session_state.history.append(question)
+            result = orchestrator.analyze(current_question, data_profile=profile)
+        st.session_state.history.append(current_question)
         st.session_state.last_result = result
+        if debug_mode:
+            logger.info("Analyzed question=%r -> success=%s scope=%s", current_question, result.success, result.scope)
 
     result = st.session_state.last_result
     if result is not None:
@@ -219,10 +299,11 @@ else:
                 report_md = render_markdown_report(result)
                 st.download_button("Download Markdown report", report_md, file_name="datapilot_report.md")
                 try:
-                    st.download_button(
-                        "Download PDF report", render_pdf_report_bytes(result),
-                        file_name="datapilot_report.pdf", mime="application/pdf",
-                    )
+                    import io
+                    pdf_buffer = io.BytesIO()
+                    render_pdf_report(result, "/tmp/_datapilot_report.pdf")
+                    with open("/tmp/_datapilot_report.pdf", "rb") as f:
+                        st.download_button("Download PDF report", f.read(), file_name="datapilot_report.pdf", mime="application/pdf")
                 except Exception as exc:
                     st.caption(f"PDF export unavailable: {exc}")
                 st.markdown(report_md)
@@ -230,6 +311,4 @@ else:
             if result.follow_up_questions:
                 st.markdown("**Follow-up questions:**")
                 for q in result.follow_up_questions:
-                    if st.button(q, key=f"followup_{q}"):
-                        st.session_state["_pending_question"] = q
-                        st.rerun()
+                    st.button(q, key=f"followup_{q}", on_click=_use_question, args=(q,))

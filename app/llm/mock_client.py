@@ -23,6 +23,7 @@ import json
 import re
 
 from app.analytics.metrics import compute_metric_alias
+from app.agents.intent_hints import COUNT_HINTS, DESCRIPTIVE_STATS_HINTS, DUPLICATE_HINTS, MISSING_DATA_HINTS
 from app.data.column_matcher import (
     extract_limit,
     find_columns_for_concept,
@@ -37,13 +38,8 @@ _RANK_HINTS = ["top", "highest", "lowest", "best", "worst", "rank", "ranking", "
 _MIN_HINTS = ["lowest", "worst", "bottom", "smallest", "minimum", "least", "declining", "decreasing"]
 _COMPARE_HINTS = ["compare", "versus", "vs", "difference between"]
 _DIST_HINTS = ["distribution", "breakdown", "split", "by category", "segment"]
-_COUNT_HINTS = ["how many", "count", "number of"]
 _PERCENT_CHANGE_HINTS = ["percentage change", "percent change", "% change", "growth rate", "growth over"]
 _DECLINE_HINTS = ["declining", "decreasing", "dropped", "falling", "which products experienced decline"]
-_MISSING_DATA_HINTS = ["missing value", "missing data", "null value", "how complete", "data quality", "data is missing"]
-_DUPLICATE_HINTS = ["duplicate", "duplicated", "repeated rows", "same row twice"]
-_DESCRIPTIVE_HINTS = ["describe the data", "summary statistics", "basic statistics", "descriptive statistics",
-                       "summarize the data", "overview of the data"]
 _AMBIGUOUS_BEST_SELLING = ["best-selling", "best selling", "best seller", "most popular"]
 _ASC_PHRASES = ["ascending order", "lowest to highest", "smallest to largest", "increasing order"]
 _DESC_PHRASES = ["descending order", "highest to lowest", "largest to smallest", "decreasing order"]
@@ -74,17 +70,12 @@ def _parse_schema_block(schema_description: str) -> dict[str, dict]:
             current_table = line[len("TABLE "):].split(" ")[0].strip(":")
             tables[current_table] = {"columns": [], "samples": {}}
         elif line.startswith("- ") and current_table:
-            m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*(\[.*\]))?", line)
+            m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*\[(.*)\])?", line)
             if m:
                 col_name, col_type, values_blob = m.group(1), m.group(2), m.group(3)
                 tables[current_table]["columns"].append((col_name, col_type))
                 if values_blob:
-                    try:
-                        values = json.loads(values_blob)
-                    except json.JSONDecodeError:
-                        values = []
-                    if isinstance(values, list):
-                        tables[current_table]["samples"][col_name] = [str(value) for value in values]
+                    tables[current_table]["samples"][col_name] = [v.strip() for v in values_blob.split(",") if v.strip()]
     return tables
 
 
@@ -102,8 +93,6 @@ def _extract_filters(qlower: str, samples: dict[str, list[str]]) -> list[dict]:
 
 
 class MockLLMClient(LLMClient):
-    provider_name = "mock"
-
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         if "TASK: plan" in user_prompt:
             return self._plan(user_prompt)
@@ -142,7 +131,7 @@ class MockLLMClient(LLMClient):
         samples = tables[table_name]["samples"]
         qlower = question.lower()
 
-        is_count_question = any(h in qlower for h in _COUNT_HINTS)
+        is_count_question = any(h in qlower for h in COUNT_HINTS)
         sort_phrase_hint = any(p in qlower for p in _ASC_PHRASES + _DESC_PHRASES)
         rank_hint = any(h in qlower for h in _RANK_HINTS) or sort_phrase_hint
         time_hint = any(h in qlower for h in _TIME_HINTS)
@@ -152,11 +141,11 @@ class MockLLMClient(LLMClient):
         decline_hint = any(h in qlower for h in _DECLINE_HINTS)
 
         # -- meta intents answerable straight from the DataProfile, no SQL at all
-        if any(h in qlower for h in _MISSING_DATA_HINTS):
+        if any(h in qlower for h in MISSING_DATA_HINTS):
             return json.dumps(base_plan(intent="missing_data", chart_type="table"))
-        if any(h in qlower for h in _DUPLICATE_HINTS):
+        if any(h in qlower for h in DUPLICATE_HINTS):
             return json.dumps(base_plan(intent="duplicate_analysis", chart_type="table"))
-        if any(h in qlower for h in _DESCRIPTIVE_HINTS):
+        if any(h in qlower for h in DESCRIPTIVE_STATS_HINTS):
             return json.dumps(base_plan(intent="descriptive_stats", chart_type="table"))
 
         # -- ambiguity: a phrase with more than one plausible metric interpretation
@@ -193,14 +182,22 @@ class MockLLMClient(LLMClient):
                 return json.dumps(base_plan(
                     dimension_column=dimension_column, date_column=date_column,
                     clarification_needed=(
-                        f"Could not map this question to a specific measurable column in '{table_name}'. "
-                        f"Try naming one of: {', '.join(n for n, t in columns if _is_numeric_type(t))}."
+                        f"I can see you're asking about '{table_name}', but I'm not sure which "
+                        f"measurement you'd like -- could you specify one of: "
+                        f"{', '.join(n for n, t in columns if _is_numeric_type(t))}?"
                     ),
                 ))
 
-        implicit_groupby = dimension_column and re.search(
-            rf"\bby\s+{re.escape(normalize(dimension_column))}\b", qlower
-        )
+        # A resolved dimension_column already required either the literal
+        # column name or a concept synonym to appear somewhere in the
+        # question (see _resolve_dimension_column above) -- so once that's
+        # true, a bare "by" anywhere in the question is a strong enough
+        # signal of an intended group-by. (Previously this required an
+        # exact "by <full column name>" phrase immediately adjacent, which
+        # missed phrasing like "revenue by categories" against a column
+        # literally named "product_category" -- the concept word alone,
+        # not the full column name, is what appears in real questions.)
+        implicit_groupby = dimension_column is not None and re.search(r"\bby\b", qlower)
         limit = extract_limit(qlower)
         singular = is_singular_ranking_phrase(qlower) and dimension_column is not None
 
@@ -209,6 +206,12 @@ class MockLLMClient(LLMClient):
             intent = "percentage_change"
         elif decline_hint and dimension_column and date_column:
             intent = "trend_by_dimension"
+        elif decline_hint and date_column and not dimension_column:
+            # "What's declining in sales?" with no named dimension: still
+            # show the time trend (so the user can SEE the direction) rather
+            # than collapsing to one flat total that says nothing about
+            # decline at all.
+            intent = "trend"
         elif time_hint and date_column and not dimension_column:
             intent = "trend"
         elif (rank_hint or singular) and dimension_column:
@@ -273,8 +276,9 @@ class MockLLMClient(LLMClient):
 
     @staticmethod
     def _concept_hinted_in_question(concept: str, qlower: str) -> bool:
-        from app.data.column_matcher import CONCEPT_SYNONYMS
-        return any(syn in qlower for syn in CONCEPT_SYNONYMS.get(concept, [concept]))
+        from app.data.column_matcher import CONCEPT_SYNONYMS, normalize
+        norm_q = normalize(qlower)
+        return any(syn in qlower or normalize(syn) in norm_q for syn in CONCEPT_SYNONYMS.get(concept, [concept]))
 
     def _resolve_dimension_column(self, columns: list[tuple[str, str]], qlower: str) -> str | None:
         for name, sqltype in columns:

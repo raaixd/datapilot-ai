@@ -12,8 +12,6 @@ from abc import ABC, abstractmethod
 
 
 class LLMClient(ABC):
-    provider_name = "unknown"
-
     @abstractmethod
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         """Return the raw text completion for a single-turn prompt."""

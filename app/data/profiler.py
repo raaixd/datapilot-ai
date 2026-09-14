@@ -10,8 +10,9 @@ tested in isolation and reused anywhere a DataFrame shows up.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
+import numpy as np
 import pandas as pd
 
 
@@ -48,7 +49,7 @@ class DataProfile:
     duplicate_row_count: int
     columns: list[ColumnProfile]
     warnings: list[DataQualityWarning]
-    profiled_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    profiled_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     @property
     def has_critical_warnings(self) -> bool:

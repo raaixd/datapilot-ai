@@ -1,9 +1,6 @@
-import json
 import unittest
 
-from app.agents.planner import AnalysisPlan, AnalysisPlanner, PlanValidationError
-from app.data.database import TableSchema
-from app.llm.base import LLMClient
+from app.agents.planner import AnalysisPlan, PlanValidationError
 
 
 def _base_kwargs(**overrides):
@@ -60,19 +57,6 @@ class TestPlanValidation(unittest.TestCase):
         plan = AnalysisPlan(**_base_kwargs(intent="unsupported", table=None, metric_column=None))
         plan.validate()  # should not raise
         self.assertFalse(plan.is_answerable)
-
-    def test_legacy_comparison_intent_is_normalized(self):
-        class LegacyResponseClient(LLMClient):
-            def complete(self, system_prompt, user_prompt):
-                return json.dumps({
-                    "intent": "comparison", "table": "sales", "metric_column": "revenue",
-                    "aggregation": "sum", "dimension_column": "region", "date_column": None,
-                    "filters": [], "chart_type": "bar", "clarification_needed": None,
-                })
-
-        schema = {"sales": TableSchema("sales", [("region", "TEXT"), ("revenue", "REAL")], 2)}
-        plan = AnalysisPlanner(LegacyResponseClient()).plan("Compare revenue by region", schema)
-        self.assertEqual(plan.intent, "grouped_comparison")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from app.agents.planner import AnalysisPlan, describe_schema_text
 from app.data.database import TableSchema
 from app.llm.base import LLMClient
 from app.llm.prompts import SQL_GENERATOR_SYSTEM_PROMPT, build_sql_user_prompt
+from app.rag.retriever import retrieve
 
 
 class SQLGenerator:
@@ -15,7 +16,8 @@ class SQLGenerator:
 
     def generate(self, plan: AnalysisPlan, schema: dict[str, TableSchema]) -> str:
         schema_text = describe_schema_text(schema)
-        user_prompt = build_sql_user_prompt(json.dumps(asdict(plan)), schema_text)
+        retrieved = retrieve(plan.question, schema)
+        user_prompt = build_sql_user_prompt(json.dumps(asdict(plan)), schema_text, retrieved.to_prompt_text())
         raw_sql = self._llm.complete(SQL_GENERATOR_SYSTEM_PROMPT, user_prompt)
         return _strip_code_fence_and_prose(raw_sql)
 

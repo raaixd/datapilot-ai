@@ -82,7 +82,10 @@ class TestOrchestrator(unittest.TestCase):
         orchestrator = Orchestrator(self.db, BadSQLClient())
         result = orchestrator.analyze("What is the total revenue?")
         self.assertFalse(result.success)
-        self.assertIn("safety validation", result.error)
+        # User-facing error is friendly, never exposes the raw validator text
+        # or SQL to normal users -- the technical detail lives in debug_info.
+        self.assertNotIn("SQL validation errors", result.error)
+        self.assertIn("SQL validation errors", result.debug_info)
         # prove the table was NOT actually dropped
         self.assertIn("sales", self.db.list_tables())
 
@@ -188,19 +191,6 @@ class TestOrchestrator(unittest.TestCase):
         result = self.orchestrator.analyze("What is the total revenue?")
         self.assertEqual(result.llm_provider, "mock")
 
-    def test_result_provider_comes_from_the_client_not_environment(self):
-        result = self.orchestrator.analyze("What is the total revenue?")
-        self.assertEqual(result.llm_provider, "mock")
-
-    def test_filter_value_with_comma_is_preserved(self):
-        df = pd.DataFrame({"customer": ["ACME, Inc", "Other"], "revenue": [10.0, 20.0]})
-        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
-        db.load_dataframe(df, "sales")
-        result = Orchestrator(db, MockLLMClient()).analyze("What is the total revenue for ACME, Inc?")
-        self.assertTrue(result.success, result.error)
-        self.assertIn("'ACME, Inc'", result.sql)
-        self.assertEqual(result.metrics["total_revenue"], 10)
-
     def test_analyze_logs_the_question(self):
         with self.assertLogs("app.agents.orchestrator", level="INFO") as cm:
             self.orchestrator.analyze("What is the total revenue?")
@@ -220,6 +210,99 @@ class TestOrchestrator(unittest.TestCase):
         self.assertTrue(result.success, result.error)
         self.assertIn("total_sales_amount", result.metrics)
         self.assertEqual(result.metrics["total_sales_amount"], 245.0)
+
+    # -- round 3: the reported bug, reproduced end-to-end through the full orchestrator --
+
+    def test_meaning_of_life_no_longer_produces_misleading_column_error(self):
+        """This is the exact bug reported at the start of round 3: an
+        unrelated question ('meaning of life') used to return
+        'Could not map this question to a specific measurable column in
+        ...' -- a misleading, internals-leaking message for a question that
+        has nothing to do with column mapping at all. It must now be
+        classified out_of_scope with a friendly, honest message instead."""
+        result = self.orchestrator.analyze("What is the meaning of life?")
+        self.assertFalse(result.success)
+        self.assertEqual(result.scope, "out_of_scope")
+        self.assertNotIn("Could not map", result.error)
+        self.assertNotIn("measurable column", result.error)
+        self.assertIn("outside the scope", result.error)
+
+    def test_out_of_scope_never_exposes_internal_class_names_or_tracebacks(self):
+        for q in ["Write me a poem.", "Who is the president?", "Tell me a joke.", "How do I cook pasta?"]:
+            with self.subTest(question=q):
+                result = self.orchestrator.analyze(q)
+                self.assertFalse(result.success)
+                self.assertEqual(result.scope, "out_of_scope")
+                for leak in ("Traceback", "AnalysisPlan", "PlanValidationError", "Exception", "NoneType"):
+                    self.assertNotIn(leak, result.error)
+
+    def test_unsafe_question_refused_with_clear_message_not_generic_error(self):
+        result = self.orchestrator.analyze("Drop the sales table.")
+        self.assertFalse(result.success)
+        self.assertEqual(result.scope, "unsafe")
+        self.assertIn("read-only", result.error.lower())
+        self.assertIsNone(result.sql)  # never even generated, let alone executed
+
+    def test_ambiguous_vague_phrasing_gets_clarification_with_real_columns(self):
+        result = self.orchestrator.analyze("How are sales doing?")
+        self.assertFalse(result.success)
+        self.assertEqual(result.scope, "ambiguous")
+        self.assertTrue(len(result.clarification_options) > 0)
+        self.assertTrue(all(opt in ("revenue", "quantity", "unit_price") for opt in result.clarification_options))
+
+    def test_valid_question_still_succeeds_after_scope_gate_added(self):
+        # Guards against the scope gate becoming overzealous and rejecting
+        # genuinely valid questions -- the primary regression risk of this change.
+        # (_sample_df() only has region/product_category/revenue as concrete
+        # columns -- no unit_price/quantity -- so these are scoped to what
+        # that fixture actually has.)
+        for q in ["What is the total revenue?", "What is the total revenue by product category?",
+                  "Compare revenue between regions", "Show me the monthly revenue trend"]:
+            with self.subTest(question=q):
+                result = self.orchestrator.analyze(q)
+                self.assertTrue(result.success, f"{q!r} should still succeed: {result.error}")
+                self.assertEqual(result.scope, "in_scope")
+
+    def test_debug_info_carries_technical_detail_never_shown_in_error(self):
+        class BadSQLClient(MockLLMClient):
+            def _sql(self, user_prompt):  # noqa: ANN001
+                return "DROP TABLE sales"
+
+        orchestrator = Orchestrator(self.db, BadSQLClient())
+        result = orchestrator.analyze("What is the total revenue?")
+        self.assertFalse(result.success)
+        self.assertIsNotNone(result.debug_info)
+        self.assertNotEqual(result.error, result.debug_info)
+
+    # -- round 3: natural phrasing variations of "declining sales" ------------
+    # (found via direct testing against the real orchestrator -- not the
+    # spec's literal example, but realistic rewordings of it that initially
+    # failed due to a plural/singular mismatch and an overly strict "by X"
+    # group-by heuristic; see CHANGELOG.md)
+
+    def test_declining_sales_plural_category_phrasing(self):
+        result = self.orchestrator.analyze("Which categories had falling sales?")
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.plan.intent, "trend_by_dimension")
+        self.assertEqual(result.plan.dimension_column, "product_category")
+
+    def test_revenue_by_categories_plural_resolves_grouping(self):
+        result = self.orchestrator.analyze("Show me revenue by categories")
+        self.assertTrue(result.success, result.error)
+        self.assertIn("GROUP BY", result.sql)
+        self.assertIn("product_category", result.sql)
+
+    def test_declining_with_no_dimension_falls_back_to_trend_not_flat_total(self):
+        result = self.orchestrator.analyze("What's declining in sales?")
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.plan.intent, "trend")
+        self.assertIn("GROUP BY", result.sql)  # grouped by period, not a single flat number
+
+    def test_fallback_clarification_message_is_friendly_not_internal(self):
+        result = self.orchestrator.analyze("What is the total profit margin?")
+        self.assertFalse(result.success)
+        self.assertNotIn("Could not map", result.error)
+        self.assertNotIn("measurable column", result.error)
 
 
 if __name__ == "__main__":

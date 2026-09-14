@@ -124,3 +124,119 @@ touching those stays syntax-checked only, same as round 1 -- see README
 - README rewritten from scratch per the full spec checklist, including
   Windows PowerShell install/run commands and an explicit
   implemented-vs-written-but-unverified table.
+
+## Round 3 -- scope classification, DB/session reliability, NLU fixes, RAG
+
+### The reported bug and its fix
+
+An unrelated question ("meaning of life") produced a misleading
+column-mapping error instead of an honest "this isn't about your data"
+response. Root cause: there was no scope-classification stage at all --
+every kind of failure (off-topic, vague, or a genuinely missing column)
+collapsed into one message from the planner. Fixed with a new,
+deterministic (no LLM call) `app/agents/scope_classifier.py` that runs
+before planning and classifies every question into `in_scope | ambiguous |
+out_of_scope | unsafe`, using schema-overlap as the primary signal (not a
+hardcoded topic denylist -- generalizes to any dataset). All 20 of the
+bug report's own example questions, across all four categories, are now
+individually unit-tested and pass. See the message exchange in this
+project's history for the full root-cause writeup and the phased plan that
+preceded implementation.
+
+### Database / thread / session reliability
+
+Reproduced the exact reported `SQLite objects created in a thread can only
+be used in that same thread` error first (see
+`tests/test_database_thread_safety.py::test_default_memory_mode_is_not_thread_safe`),
+then fixed it. Chose a file-backed database with a fresh, short-lived
+connection per operation over three rejected alternatives (`check_same_thread=False`
+alone, a fresh connection against `:memory:`, a connection pool) -- full
+tradeoff writeup in `app/data/database.py`'s module docstring.
+`AnalyticalDatabase.create_session_database()` is the new entry point for
+Streamlit/API use; the plain `:memory:` constructor remains for
+tests/eval/CLI (single-threaded, no temp files). Proven with real
+`threading.Thread` tests: load-on-one-thread/query-on-another, 20
+concurrent readers, and the original failure reproduced then fixed.
+
+Also fixed a **cross-session data leakage bug** found while wiring this
+in: `frontend/streamlit_app.py`'s `@st.cache_resource` on the
+db/orchestrator meant every Streamlit user on the same server shared one
+dataset. Fixed by moving the per-session database into
+`st.session_state` (genuinely session-isolated) and keeping only the
+stateless LLM client/settings in `st.cache_resource`.
+
+The same leakage existed in `app/api/main.py` (one global dataset shared
+by every API client) -- fixed with a new, deliberately FastAPI-independent
+`app/api/session_manager.py` (so it's actually unit-testable here: 12
+tests, including the exact "client A's data doesn't leak into client B's
+session" scenario, proven directly). Each session gets its own
+file-backed `AnalyticalDatabase`, a server-generated UUID, and a
+simple TTL-based expiry (no background scheduler needed at this scale --
+tradeoff documented in that module's docstring). `POST /upload` now
+returns a `session_id`; `POST /query` requires it. Added `MAX_UPLOAD_MB`
+and `SESSION_TTL_MINUTES` settings, and a `DELETE /session/{id}` endpoint.
+
+### NLU / query-quality fixes (found via direct testing, not just the literal spec example)
+
+The literal "Which products experienced declining sales?" already worked
+correctly (routes to a `trend_by_dimension` intent: `GROUP BY dimension,
+period`, with per-entity increase/decrease detection done in
+`app/analytics/metrics.py` over the clean query result -- not in SQL).
+But natural rewordings failed:
+
+- "Which product categories are declining?" / "Show me revenue by
+  categories" -- failed because `product_category` (singular) didn't
+  match `categories` (plural) as a substring. Fixed by adding conservative
+  English singularization to the shared `app/data/column_matcher.py::normalize()`,
+  used consistently everywhere column/concept names are compared against
+  question text.
+- "Show me revenue by categories" also failed because the group-by
+  detector required the EXACT full column name immediately after "by"
+  (`\bby\s+product category\b`) -- loosened to "a dimension was already
+  resolved AND 'by' appears anywhere in the question", which is
+  significantly more robust to real phrasing.
+- "What's declining in sales?" (no dimension named) fell back to one flat
+  total, which doesn't show a decline at all -- now falls back to the
+  plain `trend` intent (revenue over time) instead, so there's at least a
+  visible pattern to look at.
+- The fallback clarification message ("Could not map this question to a
+  specific measurable column...") was reworded to be conversational
+  rather than sounding like an internal error, independent of the
+  scope-classifier's own (separate) friendly messages.
+
+### RAG / retrieval layer (new -- did not exist before this round)
+
+Added `app/rag/`: a small, hand-curated business glossary and validated
+question-pattern library (`knowledge_base.py`), retrieved via schema-aware
+keyword/concept matching (`retriever.py`) -- deliberately NOT a vector
+store, which isn't justified infrastructure for a knowledge base this
+small (tradeoff documented in the module docstring; revisit if the
+glossary/example library grows much larger). This is wired into BOTH
+`app/agents/planner.py` and `app/agents/sql_generator.py`'s actual prompts
+sent to the LLM -- proven with a recording-client test harness
+(`tests/test_rag_prompt_integration.py`) that inspects the literal prompt
+text, not just that the retriever module runs. Found and fixed a real
+prompt-corruption risk while wiring this in: inserting the CONTEXT block
+between the mock client's `PLAN:` and `SCHEMA:` markers broke its
+non-greedy regex parsing -- fixed by placing CONTEXT before PLAN
+consistently (documented in `app/llm/prompts.py`).
+
+### Frontend bug: "Type a question first..." warning firing on valid input
+
+Traced per the reported checklist. `streamlit` is not installed in this
+project's dev sandbox (no network access), so this could NOT be confirmed
+against a live run -- stated plainly rather than claimed fixed-and-verified.
+Found a specific, well-documented Streamlit anti-pattern in the code:
+`st.text_input(..., value=st.session_state.pop(...))` with no explicit
+`key=`. Replaced with the documented-safe pattern: a stable `key`, and
+`on_click` callbacks (which run and complete before the script body
+reruns) for every "fill this question in" action (example buttons,
+follow-up buttons), removing the entire class of value/key race this
+anti-pattern is known to cause, regardless of the exact mechanism behind
+the originally reported symptom. Added a "Show debug info" toggle
+(session-state snapshot) for live diagnosis if the symptom recurs.
+
+### Still not executed in this environment
+
+`fastapi`, `streamlit`, `plotly`, `duckdb`, `pydantic`, `ruff` remain
+uninstallable here. `openpyxl` remains genuinely installed and tested.

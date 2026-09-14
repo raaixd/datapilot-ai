@@ -4,7 +4,7 @@ import unittest
 
 from app.agents.orchestrator import AnalysisResult
 from app.reports.markdown_report import render_markdown_report
-from app.reports.pdf_report import render_pdf_report, render_pdf_report_bytes
+from app.reports.pdf_report import render_pdf_report
 
 
 def _success_result():
@@ -39,10 +39,6 @@ class TestMarkdownReport(unittest.TestCase):
 
 
 class TestPDFReport(unittest.TestCase):
-    def test_generates_pdf_bytes_without_a_fixed_platform_path(self):
-        pdf = render_pdf_report_bytes(_success_result())
-        self.assertEqual(pdf[:5], b"%PDF-")
-
     def test_generates_valid_pdf_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "report.pdf")

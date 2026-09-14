@@ -25,10 +25,11 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from app.agents.planner import AnalysisPlan, AnalysisPlanner
+from app.agents.scope_classifier import ScopeResult, classify_scope
 from app.agents.sql_generator import SQLGenerator
 from app.agents.sql_validator import validate_sql
 from app.analytics.metrics import compute_result_metrics
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.data.database import AnalyticalDatabase
 from app.data.profiler import DataProfile, DataQualityWarning
 from app.llm.base import LLMClient
@@ -52,6 +53,11 @@ class AnalysisResult:
     error: str | None = None
     validation_warnings: list[str] = field(default_factory=list)
     llm_provider: str | None = None  # e.g. "mock" -- never claim a real model answered when it didn't
+    scope: str = "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    clarification_options: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # e.g. "I can't email this" -- surfaced alongside a successful answer
+    debug_info: str | None = None  # raw technical detail (exception text, validator errors) -- NEVER shown to
+                                    # normal users; only surfaced by a caller when Settings.debug_mode is True
 
 
 class Orchestrator:
@@ -64,35 +70,61 @@ class Orchestrator:
         self._sql_generator = SQLGenerator(llm_client)
         self._llm = llm_client
         self._max_result_rows = max_result_rows
-        self._llm_provider = llm_client.provider_name
+        self._llm_provider = (settings or get_settings()).llm_provider
 
     def analyze(self, question: str, data_profile: DataProfile | None = None) -> AnalysisResult:
         question = (question or "").strip()
         logger.info("analyze() called: question=%r", question)
         if not question:
-            return self._fail(question, "Question is empty.")
+            return self._fail(question, "Question is empty.", scope="ambiguous")
 
         schema = self._db.describe_schema()
         if not schema:
-            return self._fail(question, "No dataset has been loaded. Upload a CSV or Excel file before asking a question.")
+            return self._fail(question, "No dataset has been loaded. Upload a CSV or Excel file before asking a question.", scope="out_of_scope")
 
-        plan = self._planner.plan(question, schema)
         warnings = list(data_profile.warnings) if data_profile else []
 
-        if plan.intent == "unsupported" or plan.clarification_needed and not plan.is_answerable:
-            logger.info("Question could not be answered: %s", plan.clarification_needed)
+        scope_result = classify_scope(question, schema)
+        logger.info("Scope classification: scope=%s confidence=%.2f reason=%r", scope_result.scope, scope_result.confidence, scope_result.reason)
+
+        if scope_result.scope == "unsafe":
+            logger.warning("Unsafe question blocked before planning: %r", question)
+            return self._fail(question, scope_result.user_facing_message, warnings=warnings, scope="unsafe")
+
+        if scope_result.scope == "out_of_scope":
+            return self._fail(question, scope_result.user_facing_message, warnings=warnings, scope="out_of_scope")
+
+        if scope_result.scope == "ambiguous":
             return self._fail(
-                question, plan.clarification_needed or "The question could not be mapped to the loaded dataset.",
-                plan=plan, warnings=warnings,
+                question, scope_result.user_facing_message, warnings=warnings, scope="ambiguous",
+                clarification_options=scope_result.clarification_options,
+            )
+
+        # scope_result.scope == "in_scope" from here on: this question has
+        # genuine overlap with the loaded schema. Proceed to planning as
+        # before, but if planning still can't resolve a concrete plan, that
+        # failure is now known to be an "ambiguous" one (has schema overlap,
+        # just not specific enough) rather than a generic/misleading error --
+        # this is the fix for questions that mention dataset terms but the
+        # planner still can't build an answerable plan from them.
+        plan = self._planner.plan(question, schema)
+
+        if plan.intent == "unsupported" or (plan.clarification_needed and not plan.is_answerable):
+            logger.info("In-scope question could not be resolved to a plan: %s", plan.clarification_needed)
+            options = plan.ambiguous_options or self._numeric_column_options(schema)
+            return self._fail(
+                question,
+                plan.clarification_needed or "I need a bit more detail to answer that -- could you specify a metric to analyze?",
+                plan=plan, warnings=warnings, scope="ambiguous", clarification_options=options,
             )
 
         if plan.is_profile_only:
-            return self._answer_from_profile(question, plan, data_profile, warnings)
+            return self._answer_from_profile(question, plan, data_profile, warnings, scope_result)
 
         if not plan.is_answerable:
             return self._fail(
-                question, plan.clarification_needed or "The question could not be mapped to the loaded dataset.",
-                plan=plan, warnings=warnings,
+                question, plan.clarification_needed or "I need a bit more detail to answer that.",
+                plan=plan, warnings=warnings, scope="ambiguous",
             )
 
         raw_sql = self._sql_generator.generate(plan, schema)
@@ -100,8 +132,10 @@ class Orchestrator:
         if not validation.is_valid:
             logger.warning("Generated SQL failed validation: %s", validation.errors)
             return self._fail(
-                question, "Generated SQL failed safety validation: " + "; ".join(validation.errors),
-                plan=plan, sql=raw_sql, warnings=warnings,
+                question, "That question produced a query that didn't pass our safety checks, so I didn't run it. "
+                           "Try rephrasing it more simply, or ask about a different metric.",
+                plan=plan, sql=raw_sql, warnings=warnings, scope="in_scope",
+                debug_info="SQL validation errors: " + "; ".join(validation.errors),
             )
 
         try:
@@ -109,15 +143,18 @@ class Orchestrator:
         except Exception as exc:  # surfaced, never swallowed
             logger.exception("Query execution failed")
             return self._fail(
-                question, f"Query execution failed: {exc}",
+                question, "I generated a query for that but it failed to run against your data. "
+                           "This can happen with unusual column types or values -- try a simpler question.",
                 plan=plan, sql=validation.safe_sql, warnings=warnings,
-                validation_warnings=validation.warnings,
+                validation_warnings=validation.warnings, scope="in_scope",
+                debug_info=f"Query execution failed: {exc!r}",
             )
 
         metric_alias = plan.metric_alias or "value"
         metrics = compute_result_metrics(result_df, metric_alias, plan.dimension_column)
         insight = self._narrate(question, validation.safe_sql, result_df, metrics)
         follow_ups = _default_follow_ups(plan)
+        notes = [scope_result.unsupported_action_note] if scope_result.unsupported_action_note else []
 
         return AnalysisResult(
             question=question,
@@ -132,10 +169,13 @@ class Orchestrator:
             follow_up_questions=follow_ups,
             validation_warnings=validation.warnings,
             llm_provider=self._llm_provider,
+            scope="in_scope",
+            notes=notes,
         )
 
     def _answer_from_profile(
-        self, question: str, plan: AnalysisPlan, data_profile: DataProfile | None, warnings: list
+        self, question: str, plan: AnalysisPlan, data_profile: DataProfile | None, warnings: list,
+        scope_result: ScopeResult | None = None,
     ) -> AnalysisResult:
         """Answer missing_data / duplicate_analysis / descriptive_stats directly
         from the DataProfile -- no SQL, no query execution. If no profile was
@@ -143,7 +183,7 @@ class Orchestrator:
         if data_profile is None:
             return self._fail(
                 question, "This question needs the dataset's data-quality profile, which hasn't been computed yet.",
-                plan=plan, warnings=warnings,
+                plan=plan, warnings=warnings, scope="in_scope",
             )
 
         if plan.intent == "missing_data":
@@ -171,20 +211,33 @@ class Orchestrator:
                 for c in data_profile.columns
             ]
 
+        notes = [scope_result.unsupported_action_note] if scope_result and scope_result.unsupported_action_note else []
         return AnalysisResult(
             question=question, success=True, plan=plan, sql=None,
             result_preview=preview, metrics=metrics, insight=insight,
             chart_type="table", data_quality_warnings=warnings,
             follow_up_questions=["Would you like to see this broken down by column or category?"],
-            llm_provider=self._llm_provider,
+            llm_provider=self._llm_provider, scope="in_scope", notes=notes,
         )
 
-    def _fail(self, question, error, plan=None, sql=None, warnings=None, validation_warnings=None) -> AnalysisResult:
+    def _fail(
+        self, question, error, plan=None, sql=None, warnings=None, validation_warnings=None,
+        scope: str = "out_of_scope", clarification_options: list[str] | None = None, debug_info: str | None = None,
+    ) -> AnalysisResult:
         return AnalysisResult(
             question=question, success=False, plan=plan, sql=sql, error=error,
             data_quality_warnings=warnings or [], validation_warnings=validation_warnings or [],
-            llm_provider=self._llm_provider,
+            llm_provider=self._llm_provider, scope=scope,
+            clarification_options=clarification_options or [], debug_info=debug_info,
         )
+
+    def _numeric_column_options(self, schema) -> list[str]:
+        options = []
+        for table in schema.values():
+            for name, sqltype in table.columns:
+                if any(t in sqltype.upper() for t in ("INT", "REAL", "FLOAT", "DOUBLE", "NUM", "DECIMAL")):
+                    options.append(name)
+        return options[:5]
 
     def _narrate(self, question: str, sql: str, result_df: pd.DataFrame, metrics: dict) -> str:
         preview = "(no rows)" if result_df.empty else result_df.head(10).to_string(index=False)

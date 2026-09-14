@@ -13,7 +13,6 @@ openpyxl>=3.1        # .xlsx read/write support (app/data/loader.py) -- genuinel
 fastapi>=0.110
 uvicorn[standard]>=0.29
 pydantic>=2.6
-python-dotenv>=1.0
 python-multipart>=0.0.9
 
 # Frontend (frontend/streamlit_app.py):
@@ -31,6 +30,3 @@ anthropic>=0.25
 
 # Lint
 ruff>=0.4
-
-# Optional: real LLM provider (only needed if LLM_PROVIDER=openai)
-openai>=1.0

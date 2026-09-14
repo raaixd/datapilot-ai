@@ -33,15 +33,42 @@ CONCEPT_SYNONYMS: dict[str, list[str]] = {
 }
 
 
+def _singularize_word(word: str) -> str:
+    """Best-effort English singularization for MATCHING purposes only (never
+    used for display text). Deliberately conservative: short words and
+    words already ending in common non-plural '-us'/'-ss' patterns are left
+    alone, since over-aggressive stripping causes worse false matches than
+    under-stripping does."""
+    if len(word) <= 3:
+        return word
+    if word.endswith("ies"):
+        return word[:-3] + "y"
+    if word.endswith(("ses", "xes", "zes", "ches", "shes")):
+        return word[:-2]
+    if word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
+
+
 def normalize(name: str) -> str:
-    """Lowercase and turn underscores into spaces so 'Product_Name' and
-    'product name' compare equal."""
-    return re.sub(r"[_\s]+", " ", name.strip().lower())
+    """Lowercase, turn underscores into spaces, AND singularize each word,
+    so 'Product_Name'/'product name', and -- importantly -- 'category' /
+    'categories' / 'product categories', all compare equal. This is applied
+    consistently everywhere column/concept names are compared against
+    question text (mentioned_in_text, column_matches_concept, and
+    app/llm/mock_client.py's concept-hint checks all go through this one
+    function), so a plural in the user's question can't silently fail to
+    match a singular column name (or vice versa)."""
+    cleaned = re.sub(r"[_\s]+", " ", name.strip().lower())
+    return " ".join(_singularize_word(w) for w in cleaned.split(" ") if w)
 
 
 def mentioned_in_text(name: str, text_lower: str) -> bool:
-    """True if the column name (normalized or raw) appears in free text."""
-    return name.lower() in text_lower or normalize(name) in text_lower
+    """True if the column name (normalized/singularized, or raw) appears in
+    free text -- text_lower is ALSO normalized before the substring check,
+    so 'product categories' in the question matches a column literally
+    named 'product_category'."""
+    return name.lower() in text_lower or normalize(name) in normalize(text_lower)
 
 
 def column_matches_concept(column_name: str, concept: str) -> bool:

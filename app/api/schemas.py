@@ -24,7 +24,15 @@ from app.agents.planner import VALID_AGGREGATIONS, VALID_CHART_TYPES, VALID_INTE
 
 class QueryRequest(BaseModel):
     question: str
-    dataset: str = "default"
+    session_id: str  # from POST /upload's response -- see app/api/session_manager.py
+
+
+class UploadResponse(BaseModel):
+    session_id: str
+    table: str
+    row_count: int
+    columns: list[str]
+    profile: dict
 
 
 class FilterOut(BaseModel):
@@ -49,6 +57,7 @@ class AnalysisPlanModel(BaseModel):
     metric_alias: str | None = None
     ambiguous_options: list[str] = []
     clarification_needed: str | None = None
+    question: str = ""
 
     @field_validator("intent")
     @classmethod
@@ -107,10 +116,13 @@ class QueryResponse(BaseModel):
     data_quality_warnings: list[DataQualityWarningOut] = []
     error: str | None = None
     llm_provider: str | None = None  # e.g. "mock" -- never implies a live model ran when it didn't
+    scope: str = "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    clarification_options: list[str] = []
+    notes: list[str] = []
 
 
 class HealthResponse(BaseModel):
     status: str
     llm_provider: str
     database_backend: str
-    tables_loaded: int
+    active_sessions: int
