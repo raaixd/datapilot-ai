@@ -692,7 +692,6 @@ finished work:
 
 ## Credits
 
-Architectural inspiration: [NeejiMed/AI-data-analyst](https://github.com/NeejiMed/AI-data-analyst)
 (MIT License) -- see [`NOTICE.md`](NOTICE.md).
 
 ## License
