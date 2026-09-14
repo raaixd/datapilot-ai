@@ -7,10 +7,7 @@ safety layer that never executes anything but a validated, read-only
 `SELECT`, and that asks for clarification instead of guessing when a
 question is genuinely ambiguous.
 
-> Inspired by the architecture of [NeejiMed/AI-data-analyst](https://github.com/NeejiMed/AI-data-analyst)
 > (MIT License). See [`NOTICE.md`](NOTICE.md) and
-> ["How this differs from the reference project"](#how-this-differs-from-the-reference-project)
-> for what was reused as an idea vs. redesigned from scratch.
 
 ## What problem this solves
 
