@@ -1,0 +1,35 @@
+# Core (no external deps beyond these are required for app/core, app/data,
+# app/agents, app/analytics, app/llm/mock_client.py, app/reports -- i.e.
+# everything covered by tests/ and eval/):
+pandas>=2.1
+numpy>=1.26
+reportlab>=4.0
+openpyxl>=3.1        # .xlsx read/write support (app/data/loader.py) -- genuinely tested in this project
+
+# Optional: legacy .xls (old binary Excel format) support
+# xlrd>=2.0
+
+# Web API layer (app/api/):
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+python-multipart>=0.0.9
+
+# Frontend (frontend/streamlit_app.py):
+streamlit>=1.33
+plotly>=5.20
+
+# Testing (tests/, eval/):
+pytest>=8.0
+
+# Optional: real LLM provider (only needed if LLM_PROVIDER=anthropic)
+anthropic>=0.25
+
+# Optional: swap DATABASE_BACKEND=duckdb instead of the default sqlite
+# duckdb>=0.10
+
+# Lint
+ruff>=0.4
+
+# Optional: real LLM provider (only needed if LLM_PROVIDER=openai)
+openai>=1.0
