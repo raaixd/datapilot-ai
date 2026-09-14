@@ -33,7 +33,7 @@ from app.data.loader import load_tabular_file
 from app.data.profiler import DataProfiler
 from app.llm.factory import build_llm_client
 from app.reports.markdown_report import render_markdown_report
-from app.reports.pdf_report import render_pdf_report
+from app.reports.pdf_report import render_pdf_report_bytes
 from app.visualization.charts import build_chart
 
 configure_logging()
@@ -219,11 +219,10 @@ else:
                 report_md = render_markdown_report(result)
                 st.download_button("Download Markdown report", report_md, file_name="datapilot_report.md")
                 try:
-                    import io
-                    pdf_buffer = io.BytesIO()
-                    render_pdf_report(result, "/tmp/_datapilot_report.pdf")
-                    with open("/tmp/_datapilot_report.pdf", "rb") as f:
-                        st.download_button("Download PDF report", f.read(), file_name="datapilot_report.pdf", mime="application/pdf")
+                    st.download_button(
+                        "Download PDF report", render_pdf_report_bytes(result),
+                        file_name="datapilot_report.pdf", mime="application/pdf",
+                    )
                 except Exception as exc:
                     st.caption(f"PDF export unavailable: {exc}")
                 st.markdown(report_md)

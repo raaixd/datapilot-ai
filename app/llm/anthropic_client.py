@@ -15,6 +15,7 @@ from app.llm.base import LLMClient
 
 
 class AnthropicLLMClient(LLMClient):
+    provider_name = "anthropic"
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
         try:
             import anthropic  # type: ignore
@@ -39,6 +40,7 @@ class AnthropicLLMClient(LLMClient):
 class OllamaLLMClient(LLMClient):
     """Local-model client, for running the same pipeline with zero API key
     via an Ollama server (see OLLAMA_BASE_URL in app/core/config.py)."""
+    provider_name = "ollama"
 
     def __init__(self, base_url: str, model: str = "llama3.1"):
         self._base_url = base_url.rstrip("/")

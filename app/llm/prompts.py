@@ -27,7 +27,7 @@ natural-language question and a database schema, produce ONLY a JSON object
 (no prose, no markdown fences) with this exact shape:
 
 {
-  "intent": "aggregation" | "trend" | "ranking" | "comparison" | "distribution" | "unsupported",
+  "intent": "aggregation" | "ranking" | "grouped_comparison" | "trend" | "trend_by_dimension" | "percentage_change" | "descriptive_stats" | "missing_data" | "duplicate_analysis" | "anomaly_detection" | "unsupported",
   "table": "<one table name from the schema>",
   "metric_column": "<numeric column to aggregate, or null>",
   "aggregation": "sum" | "avg" | "count" | "min" | "max" | null,

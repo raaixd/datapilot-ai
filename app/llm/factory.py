@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.core.config import Settings
 from app.llm.base import LLMClient
 from app.llm.mock_client import MockLLMClient
-from app.llm.freellmapi_client import FreeLLMAPIClient
+
 
 def build_llm_client(settings: Settings) -> LLMClient:
     if settings.llm_provider == "mock":

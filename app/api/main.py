@@ -24,17 +24,16 @@ starts, rather than on the first request.
 from __future__ import annotations
 
 import logging
+from typing import Annotated
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.agents.orchestrator import Orchestrator
 from app.api.schemas import DataQualityWarningOut, HealthResponse, QueryRequest, QueryResponse
+from app.api.state import DatasetRegistry
 from app.core.config import get_settings
 from app.core.logging_config import configure_logging
-from app.data.database import AnalyticalDatabase
 from app.data.loader import MissingOptionalDependencyError, UnsupportedFileTypeError, load_tabular_file
-from app.data.profiler import DataProfiler
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -59,14 +58,11 @@ except Exception:
     )
     raise
 
-_db = AnalyticalDatabase(backend=_settings.database_backend, path=":memory:")
-_orchestrator = Orchestrator(_db, _llm, max_result_rows=_settings.max_result_rows, settings=_settings)
-_profiler = DataProfiler()
-_latest_profile = None
+_dataset_registry = DatasetRegistry(_settings, llm_factory=lambda _settings: _llm)
 
 
 @app.post("/upload")
-async def upload_dataset(file: UploadFile = File(...)):
+async def upload_dataset(file: Annotated[UploadFile, File(...)], dataset: str = "default"):
     """Accepts a .csv, .xlsx, or .xls file, profiles it, and loads it as the
     active table (replacing any previously loaded dataset -- this API holds
     exactly one active dataset at a time; see README 'How the application
@@ -83,25 +79,25 @@ async def upload_dataset(file: UploadFile = File(...)):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Could not parse '{file.filename}': {exc}") from exc
 
-    global _latest_profile
-    _latest_profile = _profiler.profile(df, dataset_name=file.filename or "uploaded.csv")
     table_name = (file.filename or "dataset").rsplit(".", 1)[0]
-    schema = _db.load_dataframe(df, table_name)
+    state = _dataset_registry.load_dataframe(dataset, df, table_name)
+    schema = state.schema
     logger.info("Loaded dataset '%s' (%d rows) as table '%s'", file.filename, schema.row_count, schema.name)
     return {
         "table": schema.name,
         "row_count": schema.row_count,
         "columns": [c[0] for c in schema.columns],
-        "profile": _latest_profile.to_dict(),
+        "profile": state.profile.to_dict(),
     }
 
 
 @app.post("/query", response_model=QueryResponse)
 async def run_query(request: QueryRequest):
-    if not _db.list_tables():
-        raise HTTPException(status_code=400, detail="No dataset loaded. POST a file to /upload first.")
+    state = _dataset_registry.get(request.dataset)
+    if state is None:
+        raise HTTPException(status_code=400, detail=f"No dataset named '{request.dataset}' is loaded. POST a file to /upload first.")
 
-    result = _orchestrator.analyze(request.question, data_profile=_latest_profile)
+    result = state.orchestrator.analyze(request.question, data_profile=state.profile)
     return QueryResponse(
         question=result.question,
         success=result.success,
@@ -127,5 +123,5 @@ async def health():
         status="healthy",
         llm_provider=_settings.llm_provider,
         database_backend=_settings.database_backend,
-        tables_loaded=len(_db.list_tables()),
+        tables_loaded=_dataset_registry.count(),
     )

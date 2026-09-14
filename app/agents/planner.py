@@ -15,6 +15,7 @@ VALID_INTENTS = {
 VALID_AGGREGATIONS = {"sum", "avg", "min", "max", "count", None}
 VALID_SORT_DIRECTIONS = {"asc", "desc", None}
 VALID_CHART_TYPES = {"bar", "line", "pie", "scatter", "table"}
+LEGACY_INTENT_ALIASES = {"comparison": "grouped_comparison", "distribution": "grouped_comparison"}
 
 
 class PlanValidationError(ValueError):
@@ -86,7 +87,7 @@ def describe_schema_text(schema: dict[str, TableSchema]) -> str:
         for col_name, col_type in table.columns:
             samples = table.column_samples.get(col_name) if table.column_samples else None
             if samples:
-                lines.append(f"- {col_name} ({col_type}) values: [{', '.join(samples)}]")
+                lines.append(f"- {col_name} ({col_type}) values: {json.dumps(samples)}")
             else:
                 lines.append(f"- {col_name} ({col_type})")
     return "\n".join(lines) if lines else "(no tables loaded)"
@@ -110,7 +111,7 @@ class AnalysisPlanner:
             )
 
         plan = AnalysisPlan(
-            intent=data.get("intent", "unsupported"),
+            intent=LEGACY_INTENT_ALIASES.get(data.get("intent"), data.get("intent", "unsupported")),
             table=data.get("table"),
             metric_column=data.get("metric_column"),
             aggregation=data.get("aggregation"),

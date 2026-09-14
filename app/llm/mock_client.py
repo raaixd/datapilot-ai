@@ -74,12 +74,17 @@ def _parse_schema_block(schema_description: str) -> dict[str, dict]:
             current_table = line[len("TABLE "):].split(" ")[0].strip(":")
             tables[current_table] = {"columns": [], "samples": {}}
         elif line.startswith("- ") and current_table:
-            m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*\[(.*)\])?", line)
+            m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*(\[.*\]))?", line)
             if m:
                 col_name, col_type, values_blob = m.group(1), m.group(2), m.group(3)
                 tables[current_table]["columns"].append((col_name, col_type))
                 if values_blob:
-                    tables[current_table]["samples"][col_name] = [v.strip() for v in values_blob.split(",") if v.strip()]
+                    try:
+                        values = json.loads(values_blob)
+                    except json.JSONDecodeError:
+                        values = []
+                    if isinstance(values, list):
+                        tables[current_table]["samples"][col_name] = [str(value) for value in values]
     return tables
 
 
@@ -97,6 +102,8 @@ def _extract_filters(qlower: str, samples: dict[str, list[str]]) -> list[dict]:
 
 
 class MockLLMClient(LLMClient):
+    provider_name = "mock"
+
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         if "TASK: plan" in user_prompt:
             return self._plan(user_prompt)

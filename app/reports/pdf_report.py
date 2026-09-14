@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import io
+from datetime import UTC, datetime
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -15,11 +16,24 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
     """Write a PDF report to output_path and return the path. This is
     exercised directly by tests/test_reports.py -- reportlab is a real,
     installed dependency, so this path is actually tested, not just written."""
-    doc = SimpleDocTemplate(output_path, pagesize=LETTER)
+    with open(output_path, "wb") as output:
+        _render_pdf(result, output)
+    return output_path
+
+
+def render_pdf_report_bytes(result: AnalysisResult) -> bytes:
+    """Render a PDF in memory so callers need not depend on a temp directory."""
+    output = io.BytesIO()
+    _render_pdf(result, output)
+    return output.getvalue()
+
+
+def _render_pdf(result: AnalysisResult, output) -> None:
+    doc = SimpleDocTemplate(output, pagesize=LETTER)
     styles = getSampleStyleSheet()
     story = [
         Paragraph("DataPilot AI &mdash; Analysis Report", styles["Title"]),
-        Paragraph(datetime.now(timezone.utc).strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
+        Paragraph(datetime.now(UTC).strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
         Spacer(1, 0.2 * inch),
         Paragraph("Question", styles["Heading2"]),
         Paragraph(_escape(result.question), styles["Normal"]),
@@ -30,7 +44,7 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
         story.append(Paragraph("Status", styles["Heading2"]))
         story.append(Paragraph(f"This question could not be answered. {_escape(result.error or '')}", styles["Normal"]))
         doc.build(story)
-        return output_path
+        return
 
     story.append(Paragraph("Executive Summary", styles["Heading2"]))
     story.append(Paragraph(_escape(result.insight or ""), styles["Normal"]))
@@ -61,7 +75,6 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
             story.append(Paragraph(f"[{w.severity.upper()}] {_escape(w.message)}", styles["Normal"]))
 
     doc.build(story)
-    return output_path
 
 
 def _styled_table(rows: list[list[str]]) -> Table:

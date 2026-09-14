@@ -235,7 +235,7 @@ out of the box with **zero API keys** using `LLM_PROVIDER=mock`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `LLM_PROVIDER` | `mock` | `mock` \| `anthropic` \| `ollama` |
+| `LLM_PROVIDER` | `mock` | `mock` \| `anthropic` \| `ollama` \| `freellmapi` |
 | `ANTHROPIC_API_KEY` | (empty) | required only if `LLM_PROVIDER=anthropic`; never hardcode this -- it's read from the environment. Missing it raises a clear `ValueError` at startup, not a silent failure. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | used only if `LLM_PROVIDER=ollama` |
 | `LLM_MODEL` | `claude-sonnet-4-6` | model name passed to whichever provider is selected |

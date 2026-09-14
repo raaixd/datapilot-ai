@@ -28,7 +28,7 @@ from app.agents.planner import AnalysisPlan, AnalysisPlanner
 from app.agents.sql_generator import SQLGenerator
 from app.agents.sql_validator import validate_sql
 from app.analytics.metrics import compute_result_metrics
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.data.database import AnalyticalDatabase
 from app.data.profiler import DataProfile, DataQualityWarning
 from app.llm.base import LLMClient
@@ -64,7 +64,7 @@ class Orchestrator:
         self._sql_generator = SQLGenerator(llm_client)
         self._llm = llm_client
         self._max_result_rows = max_result_rows
-        self._llm_provider = (settings or get_settings()).llm_provider
+        self._llm_provider = llm_client.provider_name
 
     def analyze(self, question: str, data_profile: DataProfile | None = None) -> AnalysisResult:
         question = (question or "").strip()
