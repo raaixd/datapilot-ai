@@ -39,6 +39,7 @@ _MIN_HINTS = ["lowest", "worst", "bottom", "smallest", "minimum", "least", "decl
 _COMPARE_HINTS = ["compare", "versus", "vs", "difference between"]
 _DIST_HINTS = ["distribution", "breakdown", "split", "by category", "segment"]
 _PERCENT_CHANGE_HINTS = ["percentage change", "percent change", "% change", "growth rate", "growth over"]
+_ANOMALY_HINTS = ["anomaly", "anomalies", "outlier", "outliers", "unusual value", "irregular value", "suspicious value"]
 _DECLINE_HINTS = ["declining", "decreasing", "dropped", "falling", "which products experienced decline"]
 _AMBIGUOUS_BEST_SELLING = ["best-selling", "best selling", "best seller", "most popular"]
 _ASC_PHRASES = ["ascending order", "lowest to highest", "smallest to largest", "increasing order"]
@@ -139,6 +140,7 @@ class MockLLMClient(LLMClient):
         dist_hint = any(h in qlower for h in _DIST_HINTS)
         percent_change_hint = any(h in qlower for h in _PERCENT_CHANGE_HINTS)
         decline_hint = any(h in qlower for h in _DECLINE_HINTS)
+        anomaly_hint = any(h in qlower for h in _ANOMALY_HINTS)
 
         # -- meta intents answerable straight from the DataProfile, no SQL at all
         if any(h in qlower for h in MISSING_DATA_HINTS):
@@ -174,7 +176,7 @@ class MockLLMClient(LLMClient):
         if is_count_question:
             metric_column = "*"
         elif not metric_column:
-            generic_agg_cue = any(w in qlower for w in ["total", "sum", "average", "avg", "mean"]) or rank_hint
+            generic_agg_cue = any(w in qlower for w in ["total", "sum", "average", "avg", "mean"]) or rank_hint or anomaly_hint
             numeric_cols = [n for n, t in columns if _is_numeric_type(t)]
             if generic_agg_cue and len(numeric_cols) == 1:
                 metric_column = numeric_cols[0]
@@ -202,7 +204,9 @@ class MockLLMClient(LLMClient):
         singular = is_singular_ranking_phrase(qlower) and dimension_column is not None
 
         # -- intent classification -------------------------------------------
-        if percent_change_hint:
+        if anomaly_hint:
+            intent = "anomaly_detection"
+        elif percent_change_hint:
             intent = "percentage_change"
         elif decline_hint and dimension_column and date_column:
             intent = "trend_by_dimension"

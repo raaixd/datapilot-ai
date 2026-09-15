@@ -241,6 +241,27 @@ class AnalyticalDatabase:
             rows = self._conn.execute("SHOW TABLES").fetchall()
         return [r[0] for r in rows]
 
+    def drop_all_tables(self) -> None:
+        """Drop every table currently loaded. This app's planner assumes a
+        single-table workflow (see README 'Known limitations') and always
+        operates on `next(iter(schema))` -- if a second dataset were loaded
+        under a DIFFERENT table name without dropping the first, both
+        tables would exist simultaneously and which one the planner picks
+        would depend on dict/SQL ordering, not on which one the user
+        actually meant. Callers that want to replace "the" active dataset
+        (Streamlit's uploader, the API's /upload without reusing the same
+        table name) should call this first."""
+        for table_name in self.list_tables():
+            if self.backend == "sqlite":
+                conn = self._connect()
+                try:
+                    conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+                    conn.commit()
+                finally:
+                    self._disconnect(conn)
+            else:
+                self._conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+
     def describe_schema(self) -> dict[str, TableSchema]:
         return {name: self.describe_table(name) for name in self.list_tables()}
 

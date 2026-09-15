@@ -7,7 +7,10 @@ safety layer that never executes anything but a validated, read-only
 `SELECT`, and that asks for clarification instead of guessing when a
 question is genuinely ambiguous.
 
+> Inspired by the architecture of [NeejiMed/AI-data-analyst](https://github.com/NeejiMed/AI-data-analyst)
 > (MIT License). See [`NOTICE.md`](NOTICE.md) and
+> ["How this differs from the reference project"](#how-this-differs-from-the-reference-project)
+> for what was reused as an idea vs. redesigned from scratch.
 
 ## What problem this solves
 
@@ -84,8 +87,11 @@ both gaps:
 - 12 classified intents: aggregation, ranking (with limit + sort
   direction), grouped comparison, time-series trend, percentage change,
   descriptive statistics, missing-data analysis, duplicate analysis,
-  trend-by-dimension (e.g. "which products are declining"), and
-  unsupported/ambiguous handling.
+  trend-by-dimension (e.g. "which products are declining"),
+  **anomaly detection** (flags rows more than 2 standard deviations from a
+  column's mean, using statistics from the already-computed data profile
+  rather than asking the LLM to invent them -- SQLite has no built-in
+  STDDEV), and unsupported/ambiguous handling.
 - **Ambiguity detection**: a question with more than one plausible metric
   interpretation (e.g. "best-selling"), or genuinely vague phrasing
   ("how are sales doing?"), triggers a clarification request listing real
@@ -105,7 +111,7 @@ both gaps:
   environment variable. The system never claims a live model was used when
   running in mock mode (`AnalysisResult.llm_provider`).
 - A real evaluation suite across **two datasets with different schemas**:
-  63 cases (business questions, phrasing variations of the same question,
+  65 cases (business questions, phrasing variations of the same question,
   scope-classification accuracy, safety probes, consistency checks), run
   against the actual orchestrator and reported with an honest pass rate --
   see [Evaluation](#evaluation).
@@ -212,9 +218,9 @@ datapilot-ai/
 ├── data/
 │   ├── sample_sales.csv           # bundled sample #1 (region/product_category/revenue schema)
 │   └── sample_ecommerce.csv       # bundled sample #2 -- deliberately different column names
-├── tests/                         # 172 unit/integration tests
+├── tests/                         # 181 unit/integration tests
 ├── eval/
-│   ├── benchmark.py                # 63 cases across both datasets + scope classification
+│   ├── benchmark.py                # 65 cases across both datasets + scope classification
 │   └── run_eval.py                 # runs the benchmark, prints an honest pass rate
 ├── scripts/
 │   ├── demo_cli.py                # dependency-light CLI demo (pandas/numpy/reportlab/openpyxl)
@@ -374,7 +380,7 @@ Questions expected to be **refused rather than guessed at** (see
 pytest tests/ -v
 ```
 
-As of this writing: **172 unit/integration tests, all passing.** Coverage
+As of this writing: **181 unit/integration tests, all passing.** Coverage
 includes the profiler, the SQL validator (including CTE handling and
 adversarial/injection cases), the column matcher, the CSV/Excel loader
 (the Excel path is genuinely executed, not just written -- `openpyxl` is
@@ -390,7 +396,7 @@ logging-output check).
 PYTHONPATH=. python3 eval/run_eval.py
 ```
 
-As of this writing: **63/63 cases pass (100%)** across `data/sample_sales.csv`
+As of this writing: **65/65 cases pass (100%)** across `data/sample_sales.csv`
 and `data/sample_ecommerce.csv` combined -- aggregation, ranking (including
 four phrasing variations of the same underlying ranking question), grouped
 comparison, trend, percentage change, declining-sales-by-dimension, the
@@ -418,7 +424,7 @@ claiming untested code works:
 
 | Area | Status |
 |---|---|
-| `app/core`, `app/data` (including the Excel loader), `app/agents` (including `scope_classifier.py`), `app/analytics`, `app/llm/mock_client.py`, `app/rag/*`, `app/reports/*`, `app/api/session_manager.py` | **Executed and tested** (172 unit/integration tests) and exercised end-to-end via `scripts/demo_cli.py` and the evaluation suite, against both bundled datasets. |
+| `app/core`, `app/data` (including the Excel loader), `app/agents` (including `scope_classifier.py`, anomaly detection), `app/analytics`, `app/llm/mock_client.py`, `app/rag/*`, `app/reports/*`, `app/api/session_manager.py` | **Executed and tested** (181 unit/integration tests) and exercised end-to-end via `scripts/demo_cli.py` and the evaluation suite, against both bundled datasets. |
 | `app/agents/sql_validator.py` | **Executed and tested directly**, including CTE handling and adversarial/injection cases. |
 | `app/llm/anthropic_client.py` | Written to the real Anthropic SDK, syntax-checked, **not run against a live API** here. Test locally with a real key first. |
 | `app/visualization/charts.py` (Plotly) | Written and syntax-checked; the *data shape* it consumes (plan-driven `metric_alias`) IS verified via the tested core, but Plotly rendering itself is **not executed** here (plotly not installable offline). |
@@ -642,8 +648,10 @@ worse than an honest scope statement:
   multi-table join support.
 - **CTE validation is a heuristic, not a full parser.** See
   [Security considerations](#security-considerations) above.
-- **Anomaly detection** was scoped but not implemented -- see
-  [Future improvements](#future-improvements).
+- **Anomaly detection uses a fixed z-score threshold** (2 standard
+  deviations, not user-adjustable per question) and flags individual
+  outlier rows rather than, e.g., detecting anomalous *trends* or
+  multi-column anomalies.
 - **No authentication.** Any client holding a valid `session_id` (a UUID)
   can query that session; nothing else gates access. See
   [Multi-user and session isolation](#multi-user-and-session-isolation).
@@ -667,7 +675,8 @@ worse than an honest scope statement:
 Explicitly *not* implemented -- listed here so they're not confused with
 finished work:
 
-- Anomaly detection (outlier counts/flags on a numeric column).
+- User-adjustable anomaly-detection sensitivity (currently a fixed 2-sigma
+  threshold) and multi-column/trend-level anomaly detection.
 - Numeric-range and multi-value `WHERE` filters ("orders over $500",
   "region in [North, South]").
 - A real SQL parser (`sqlglot`) in place of the current
@@ -692,6 +701,7 @@ finished work:
 
 ## Credits
 
+Architectural inspiration: [NeejiMed/AI-data-analyst](https://github.com/NeejiMed/AI-data-analyst)
 (MIT License) -- see [`NOTICE.md`](NOTICE.md).
 
 ## License

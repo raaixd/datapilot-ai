@@ -240,3 +240,83 @@ the originally reported symptom. Added a "Show debug info" toggle
 
 `fastapi`, `streamlit`, `plotly`, `duckdb`, `pydantic`, `ruff` remain
 uninstallable here. `openpyxl` remains genuinely installed and tested.
+
+## Round 3, continued -- UI polish + two more real bugs found while doing it
+
+### Scope-aware result rendering (the actual UI fix, not just cosmetics)
+
+`frontend/streamlit_app.py` previously rendered EVERY failed result as a
+red `st.error()` box, regardless of why it failed -- which was still the
+"red technical failure box for an out-of-scope question" anti-pattern,
+just one layer further out than the original bug report (the message text
+was already fixed in the scope-classifier work above; the *rendering*
+hadn't caught up). Now `AnalysisResult.scope` drives the visual treatment:
+`out_of_scope` -> calm `st.info`, `ambiguous` -> `st.warning` with
+clickable clarification buttons (built from `clarification_options`, which
+are always plain numeric column names, so "What is the total {option}?"
+is always a coherent, answerable question -- kept as text-only for
+`plan.ambiguous_options`, which are already full descriptive phrases, not
+bare column names, so guessing a fill-in question from them would be
+fragile), `unsafe` -> a firm `st.error`, and only a genuine in-scope
+failure (bad SQL, execution error) uses the plain red box.
+
+### Two more real bugs found while making this change
+
+1. **Stale-table accumulation**: `AnalyticalDatabase` never dropped a
+   previous table when a session loaded a second dataset under a
+   different filename -- both tables ended up coexisting, and the
+   planner's `next(iter(schema))` would pick whichever one came first in
+   dict order, not necessarily the one the user just uploaded. Added
+   `AnalyticalDatabase.drop_all_tables()` and call it before every load in
+   Streamlit's uploader/sample-dataset buttons, the new "Start over"
+   button, and FastAPI's `/upload`. `tests/test_database_thread_safety.py`
+   has both a test documenting the bug (two tables coexisting) and one
+   proving the fix (exactly one table remains after `drop_all_tables()`).
+2. **Shared hardcoded PDF path**: the PDF-report download button wrote to
+   a fixed path (`/tmp/_datapilot_report.pdf`) -- two concurrent Streamlit
+   sessions generating a report at the same time could race and one could
+   download the other's file. Fixed with `tempfile.mkstemp()` (a unique
+   path per call, removed after use) -- the same "no shared mutable state
+   across sessions" principle applied everywhere else in this round.
+
+### Other polish
+
+- Custom CSS (card-style metrics, consistent spacing/typography, styled
+  tabs) -- written against Streamlit's documented CSS hooks, **not
+  visually verified** (no live `streamlit run` here); said so directly in
+  the code comment rather than implied it was checked.
+- Sidebar now shows the currently-loaded dataset name and a "Start over"
+  button (clears dataset + history + question input in one action).
+- Removed genuinely dead code (`pdf_buffer = io.BytesIO()` was assigned
+  and never used).
+
+## Round 3, continued -- anomaly detection (implemented, not just declared)
+
+`"anomaly_detection"` had been listed in `app/agents/planner.py`'s
+`VALID_INTENTS` since round 2 but nothing ever actually produced or
+handled that intent -- a real, if quiet, gap between what the type system
+allowed and what the app did. Implemented now:
+
+- `app/llm/mock_client.py` recognizes anomaly/outlier phrasing and
+  resolves a target metric column the same way other intents do.
+- `app/agents/orchestrator.py` handles `anomaly_detection` as a special
+  case that does NOT go through the normal LLM-driven SQL-generation path:
+  SQLite has no built-in `STDDEV` (and `SQRT` isn't guaranteed available),
+  so asking the LLM to write a self-contained outlier-detection query
+  would mean either it fails outright or it has to invent statistics.
+  Instead, the mean and standard deviation come from
+  `app/data/profiler.py`'s already-computed, already-tested column
+  statistics (real pandas math, computed once at profiling time) and are
+  substituted into a simple `WHERE ABS(col - mean) > 2*std` query as
+  literal numbers -- which still goes through the normal `validate_sql()`
+  safety check before running, same as every other query in this app.
+- Handles the zero-variance edge case explicitly (a column where every
+  value is identical) rather than risking a divide-by-zero or a
+  meaningless "everything is an anomaly" result.
+- Verified directly against a dataset with a deliberately planted outlier
+  (correctly found, exactly 1 row), a uniform dataset (correctly finds
+  none), a zero-variance dataset (correctly explains why detection isn't
+  meaningful), and the real bundled `sample_sales.csv` (finds 29 outlier
+  rows in `revenue` out of 506 -- a real number from a real query, not
+  asserted in advance). 6 new orchestrator-level tests, 2 new eval cases
+  (65/65 passing total).

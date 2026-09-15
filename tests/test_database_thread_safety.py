@@ -178,6 +178,43 @@ class TestSessionDatabaseFileLifecycle(unittest.TestCase):
         self.assertEqual(result.iloc[0]["n"], 3)
         db.close()  # should not raise, and :memory: mode has no temp file to remove
 
+    def test_uploading_a_second_dataset_without_dropping_leaves_both_tables(self):
+        """Documents the latent bug drop_all_tables() exists to let callers
+        avoid: loading a second dataset under a different table name does
+        NOT replace the first -- both tables end up present, and which one
+        a caller's `next(iter(schema))` picks becomes non-deterministic
+        (dict insertion order, not user intent). Streamlit's uploader and
+        the API's /upload now call drop_all_tables() first specifically to
+        avoid this."""
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(pd.DataFrame({"revenue": [1.0]}), "first_upload")
+        db.load_dataframe(pd.DataFrame({"sales_amount": [2.0]}), "second_upload")
+        self.assertEqual(set(db.list_tables()), {"first_upload", "second_upload"})
+        db.close()
+
+    def test_drop_all_tables_leaves_a_single_active_dataset(self):
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(pd.DataFrame({"revenue": [1.0]}), "first_upload")
+        db.drop_all_tables()
+        db.load_dataframe(pd.DataFrame({"sales_amount": [2.0]}), "second_upload")
+        self.assertEqual(db.list_tables(), ["second_upload"])
+        db.close()
+
+    def test_drop_all_tables_on_empty_database_does_not_raise(self):
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.drop_all_tables()  # should not raise
+        self.assertEqual(db.list_tables(), [])
+        db.close()
+
+    def test_drop_all_tables_works_on_session_database(self):
+        db = AnalyticalDatabase.create_session_database()
+        try:
+            db.load_dataframe(pd.DataFrame({"a": [1]}), "t1")
+            db.drop_all_tables()
+            self.assertEqual(db.list_tables(), [])
+        finally:
+            db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

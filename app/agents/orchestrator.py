@@ -121,6 +121,9 @@ class Orchestrator:
         if plan.is_profile_only:
             return self._answer_from_profile(question, plan, data_profile, warnings, scope_result)
 
+        if plan.intent == "anomaly_detection":
+            return self._answer_anomaly_detection(question, plan, schema, data_profile, warnings, scope_result)
+
         if not plan.is_answerable:
             return self._fail(
                 question, plan.clarification_needed or "I need a bit more detail to answer that.",
@@ -219,6 +222,95 @@ class Orchestrator:
             follow_up_questions=["Would you like to see this broken down by column or category?"],
             llm_provider=self._llm_provider, scope="in_scope", notes=notes,
         )
+
+    def _answer_anomaly_detection(
+        self, question: str, plan: AnalysisPlan, schema, data_profile: DataProfile | None, warnings: list,
+        scope_result: ScopeResult | None = None, z_threshold: float = 2.0,
+    ) -> AnalysisResult:
+        """Flag rows whose metric value is more than `z_threshold` standard
+        deviations from the column's mean.
+
+        WHY THIS BYPASSES THE NORMAL SQL-GENERATION PATH: SQLite has no
+        built-in STDDEV (and no guaranteed SQRT depending on build), so
+        asking the LLM to write a self-contained "detect outliers" SQL
+        query would either fail outright or require it to invent a mean/
+        stddev approximation -- exactly the kind of number-fabrication this
+        whole pipeline is built to avoid. The mean and standard deviation
+        used here instead come from `app/data/profiler.py`'s ALREADY
+        COMPUTED, ALREADY TESTED column statistics (real pandas math, done
+        once at profiling time) -- they're substituted into the query as
+        literal numbers, so the SQL itself is trivial (a single WHERE
+        clause) and still goes through the normal `validate_sql()` safety
+        check before running, same as every other query in this app.
+        """
+        if data_profile is None:
+            return self._fail(
+                question, "Detecting anomalies needs the dataset's data-quality profile, which hasn't been computed yet.",
+                plan=plan, warnings=warnings, scope="in_scope",
+            )
+
+        column_profile = next((c for c in data_profile.columns if c.name == plan.metric_column), None)
+        if column_profile is None or column_profile.mean is None or column_profile.std is None:
+            return self._fail(
+                question,
+                f"I don't have enough statistics on '{plan.metric_column}' to detect anomalies in it "
+                f"(it may be entirely empty, or not numeric).",
+                plan=plan, warnings=warnings, scope="in_scope",
+            )
+        if column_profile.std == 0:
+            return AnalysisResult(
+                question=question, success=True, plan=plan, sql=None,
+                metrics={"anomaly_count": 0, "mean": column_profile.mean, "std": 0},
+                insight=f"Every value in '{plan.metric_column}' is the same ({column_profile.mean}), "
+                        f"so there's no variation to detect anomalies against.",
+                chart_type="table", data_quality_warnings=warnings, llm_provider=self._llm_provider, scope="in_scope",
+            )
+
+        sql = (
+            f'SELECT * FROM "{plan.table}" WHERE ABS("{plan.metric_column}" - {column_profile.mean}) '
+            f'> {z_threshold} * {column_profile.std} LIMIT {self._max_result_rows}'
+        )
+        validation = validate_sql(sql, schema, max_result_rows=self._max_result_rows)
+        if not validation.is_valid:
+            logger.error("Internally constructed anomaly-detection SQL failed validation: %s", validation.errors)
+            return self._fail(
+                question, "I couldn't safely construct an anomaly-detection query for that column.",
+                plan=plan, warnings=warnings, scope="in_scope",
+                debug_info="Anomaly SQL validation errors: " + "; ".join(validation.errors),
+            )
+
+        try:
+            result_df = self._db.query(validation.safe_sql, max_rows=self._max_result_rows)
+        except Exception as exc:
+            logger.exception("Anomaly-detection query execution failed")
+            return self._fail(
+                question, "I tried to check for anomalies but the query failed to run against your data.",
+                plan=plan, sql=validation.safe_sql, warnings=warnings, scope="in_scope",
+                debug_info=f"Query execution failed: {exc!r}",
+            )
+
+        count = len(result_df)
+        metrics = {
+            "anomaly_count": count, "mean": column_profile.mean, "std": column_profile.std,
+            "z_threshold": z_threshold, "row_count": data_profile.row_count,
+        }
+        insight = (
+            f"No values in '{plan.metric_column}' fall more than {z_threshold:g} standard deviations from "
+            f"the mean ({column_profile.mean:g}) -- nothing unusual detected."
+            if count == 0 else
+            f"Found {count} row(s) where '{plan.metric_column}' is more than {z_threshold:g} standard "
+            f"deviations from the mean ({column_profile.mean:g}, std {column_profile.std:g})."
+        )
+        notes = [scope_result.unsupported_action_note] if scope_result and scope_result.unsupported_action_note else []
+
+        return AnalysisResult(
+            question=question, success=True, plan=plan, sql=validation.safe_sql,
+            result_preview=result_df.head(20).to_dict(orient="records"), metrics=metrics, insight=insight,
+            chart_type="table", data_quality_warnings=warnings,
+            follow_up_questions=[f"What do these {plan.metric_column} outliers have in common?"],
+            validation_warnings=validation.warnings, llm_provider=self._llm_provider, scope="in_scope", notes=notes,
+        )
+
 
     def _fail(
         self, question, error, plan=None, sql=None, warnings=None, validation_warnings=None,

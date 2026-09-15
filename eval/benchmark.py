@@ -76,6 +76,10 @@ BENCHMARK: list[BenchmarkCase] = [
     BenchmarkCase("q_dup", "Are there any duplicate rows in this dataset?", "duplicate_analysis", True, expected_intent="duplicate_analysis"),
     BenchmarkCase("q_desc", "Give me summary statistics for this dataset", "descriptive_stats", True, expected_intent="descriptive_stats"),
 
+    # -- anomaly detection -----------------------------------------------------
+    BenchmarkCase("q_anomaly", "Are there any anomalies in revenue?", "anomaly_detection", True, expected_intent="anomaly_detection"),
+    BenchmarkCase("q_outlier", "Show me outliers in unit price", "anomaly_detection", True, expected_intent="anomaly_detection"),
+
     # -- ambiguous / underspecified (should be refused, not guessed) --------
     BenchmarkCase("q16", "What is the distribution of orders by product category?", "ambiguous", False,
                   notes="'orders' is not a numeric column and no aggregation cue names a real metric."),

@@ -102,6 +102,7 @@ async def upload_dataset(file: UploadFile = File(...), session_id: str | None = 
 
     state.profile = _profiler.profile(df, dataset_name=file.filename or "uploaded.csv")
     table_name = (file.filename or "dataset").rsplit(".", 1)[0]
+    state.db.drop_all_tables()  # one active dataset per session -- see README "Known limitations"
     schema = state.db.load_dataframe(df, table_name)
     logger.info("Session %s: loaded '%s' (%d rows) as table '%s'", state.session_id, file.filename, schema.row_count, schema.name)
 

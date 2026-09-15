@@ -191,6 +191,61 @@ class TestOrchestrator(unittest.TestCase):
         result = self.orchestrator.analyze("What is the total revenue?")
         self.assertEqual(result.llm_provider, "mock")
 
+    # -- round 3, continued: anomaly detection (declared as a valid intent since
+    # round 2 but never actually implemented until now) ------------------------
+
+    def test_anomaly_detection_finds_a_deliberate_outlier(self):
+        df = pd.DataFrame({"order_id": [f"O{i}" for i in range(20)], "revenue": [100.0] * 19 + [50000.0]})
+        profile = self.profiler.profile(df, dataset_name="test")
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(df, "sales")
+        orchestrator = Orchestrator(db, MockLLMClient())
+        result = orchestrator.analyze("Are there any anomalies in the revenue?", data_profile=profile)
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.plan.intent, "anomaly_detection")
+        self.assertEqual(result.metrics["anomaly_count"], 1)
+        self.assertEqual(result.result_preview[0]["revenue"], 50000.0)
+
+    def test_anomaly_detection_finds_nothing_in_uniform_data(self):
+        df = pd.DataFrame({"revenue": [100.0, 101.0, 99.0, 102.0, 98.0]})
+        profile = self.profiler.profile(df, dataset_name="test")
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(df, "sales")
+        orchestrator = Orchestrator(db, MockLLMClient())
+        result = orchestrator.analyze("Show me outliers in revenue", data_profile=profile)
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.metrics["anomaly_count"], 0)
+
+    def test_anomaly_detection_handles_zero_variance_without_crashing(self):
+        df = pd.DataFrame({"revenue": [100.0] * 10})
+        profile = self.profiler.profile(df, dataset_name="test")
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(df, "sales")
+        orchestrator = Orchestrator(db, MockLLMClient())
+        result = orchestrator.analyze("Are there any unusual values in revenue?", data_profile=profile)
+        self.assertTrue(result.success, result.error)
+        self.assertEqual(result.metrics["std"], 0)
+        self.assertIsNone(result.sql)  # never even built a query -- nothing meaningful to detect against
+
+    def test_anomaly_detection_without_profile_fails_honestly(self):
+        result = self.orchestrator.analyze("Are there any anomalies in the revenue?")  # no data_profile passed
+        self.assertFalse(result.success)
+        self.assertIn("profile", result.error.lower())
+
+    def test_anomaly_detection_sql_is_validated_before_execution(self):
+        """The SQL is built internally (not by the LLM), but it must still
+        go through the normal safety validator -- proves that path isn't
+        skipped just because the LLM didn't write the query."""
+        df = pd.DataFrame({"revenue": [100.0] * 19 + [999.0]})
+        profile = self.profiler.profile(df, dataset_name="test")
+        db = AnalyticalDatabase(backend="sqlite", path=":memory:")
+        db.load_dataframe(df, "sales")
+        orchestrator = Orchestrator(db, MockLLMClient())
+        result = orchestrator.analyze("Find anomalies in revenue", data_profile=profile)
+        self.assertTrue(result.success, result.error)
+        self.assertTrue(result.sql.strip().upper().startswith("SELECT"))
+        self.assertNotIn(";", result.sql.rstrip(";"))  # single statement, no injection surface
+
     def test_analyze_logs_the_question(self):
         with self.assertLogs("app.agents.orchestrator", level="INFO") as cm:
             self.orchestrator.analyze("What is the total revenue?")

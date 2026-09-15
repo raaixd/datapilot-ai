@@ -42,14 +42,51 @@ configure_logging()
 logger = logging.getLogger(__name__)
 st.set_page_config(page_title="DataPilot AI", page_icon="\U0001F4CA", layout="wide")
 
+# -- Visual polish (round 3): consistent palette, card-style metrics, tighter
+# spacing, and a clearer header. This is CSS/layout only -- no behavior
+# change -- and, like the rest of this file, has NOT been visually verified
+# against a live `streamlit run` (streamlit isn't installed in this
+# project's dev sandbox; see the NOTE at the top of this file). Written
+# against Streamlit's documented CSS class hooks as of the 1.3x line;
+# check it renders as intended and adjust selectors if a newer Streamlit
+# version has changed its internal class names.
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 1100px; }
+    h1 { font-weight: 700; letter-spacing: -0.02em; }
+    h2, h3 { font-weight: 600; margin-top: 1.5rem; }
+    div[data-testid="stMetric"] {
+        background-color: rgba(120, 120, 120, 0.06);
+        border: 1px solid rgba(120, 120, 120, 0.15);
+        border-radius: 10px;
+        padding: 0.9rem 1rem 0.6rem 1rem;
+    }
+    div[data-testid="stButton"] > button {
+        border-radius: 8px;
+    }
+    div[data-testid="stButton"] > button[kind="primary"] {
+        font-weight: 600;
+    }
+    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+    .stTabs [data-baseweb="tab"] { border-radius: 8px 8px 0 0; padding: 0.5rem 1rem; }
+    code { border-radius: 6px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 EXAMPLE_QUESTIONS = [
     "What is the total revenue?",
     "What are the top 5 regions by revenue?",
     "Show me the monthly revenue trend",
     "Compare revenue between regions",
     "Which products experienced declining sales?",
+    "Are there any anomalies in revenue?",
     "How much data is missing?",
 ]
+
+SCOPE_ICON = {"out_of_scope": "\U0001F4AC", "ambiguous": "\U0001F914", "unsafe": "\U0001F6D1", "in_scope": "\u26A0\ufe0f"}
 
 
 @st.cache_resource
@@ -115,6 +152,9 @@ if settings.llm_provider == "mock":
 
 with st.sidebar:
     st.header("1. Load a dataset")
+    if st.session_state.table_name:
+        st.caption(f"\U0001F4C1 Currently loaded: **{st.session_state.table_name}**")
+
     uploaded = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx", "xls"])
     use_sample = st.button("Use sample sales dataset", use_container_width=True)
 
@@ -127,6 +167,7 @@ with st.sidebar:
         if df is not None:
             table_name = uploaded.name.rsplit(".", 1)[0]
             st.session_state.profile = profiler.profile(df, dataset_name=uploaded.name)
+            db.drop_all_tables()  # this app holds one active dataset per session -- see README "Known limitations"
             schema = db.load_dataframe(df, table_name)
             st.session_state.table_name = schema.name
             st.session_state.last_result = None
@@ -135,12 +176,23 @@ with st.sidebar:
     if use_sample:
         df = pd.read_csv("data/sample_sales.csv")
         st.session_state.profile = profiler.profile(df, dataset_name="sample_sales.csv")
+        db.drop_all_tables()
         schema = db.load_dataframe(df, "sample_sales")
         st.session_state.table_name = schema.name
         st.session_state.last_result = None
         st.success(f"Loaded sample dataset -- {schema.row_count} rows.")
 
+    if st.session_state.profile is not None:
+        st.divider()
+        if st.button("\U0001F501 Start over (clear dataset & history)", use_container_width=True):
+            db.drop_all_tables()
+            for key in ("profile", "table_name", "last_result", "history", "question_input"):
+                st.session_state.pop(key, None)
+            st.session_state.history = []
+            st.rerun()
+
     if st.session_state.history:
+        st.divider()
         st.header("Query history")
         for past in reversed(st.session_state.history[-10:]):
             st.caption(f"\u2022 {past}")
@@ -253,11 +305,42 @@ else:
     result = st.session_state.last_result
     if result is not None:
         if not result.success:
-            st.error(f"**Could not answer this question.** {result.error}")
-            if result.plan and result.plan.ambiguous_options:
-                st.write("This question could mean:")
-                for opt in result.plan.ambiguous_options:
-                    st.write(f"- {opt}")
+            # Scope-aware rendering (round 3 fix): every failure used to
+            # render as a red st.error() box regardless of WHY it failed --
+            # exactly the "red technical failure box for an out-of-scope
+            # question" anti-pattern this was built to avoid. Now the
+            # visual treatment matches app/agents/scope_classifier.py's
+            # AnalysisResult.scope: out_of_scope is a calm informational
+            # message, ambiguous is a clarification prompt with clickable
+            # options, unsafe is a firm-but-clear refusal, and only a
+            # genuine in-scope failure (bad SQL, execution error) uses the
+            # red error box.
+            if result.scope == "out_of_scope":
+                st.info(result.error, icon=SCOPE_ICON["out_of_scope"])
+            elif result.scope == "ambiguous":
+                st.warning(result.error, icon=SCOPE_ICON["ambiguous"])
+                # `clarification_options` (from the scope classifier) are plain
+                # numeric column names -- safe to turn into a concrete,
+                # always-answerable clicked question. `plan.ambiguous_options`
+                # (from a genuinely ambiguous metric choice, e.g.
+                # "best-selling") are already full descriptive phrases, not
+                # bare column names, so they're shown as text rather than
+                # guessed-at as clickable questions.
+                if result.clarification_options:
+                    st.caption("Choose one, or type your own question above:")
+                    opt_cols = st.columns(min(len(result.clarification_options), 4))
+                    for i, opt in enumerate(result.clarification_options):
+                        with opt_cols[i % len(opt_cols)]:
+                            question_for_opt = f"What is the total {opt}?"
+                            st.button(opt, key=f"clarify_{opt}", on_click=_use_question, args=(question_for_opt,), use_container_width=True)
+                elif result.plan and result.plan.ambiguous_options:
+                    st.write("This could mean:")
+                    for opt in result.plan.ambiguous_options:
+                        st.write(f"- {opt}")
+            elif result.scope == "unsafe":
+                st.error(result.error, icon=SCOPE_ICON["unsafe"])
+            else:
+                st.error(f"**Could not answer this question.** {result.error}")
         else:
             st.markdown("### Executive summary")
             st.write(result.insight)
@@ -299,11 +382,21 @@ else:
                 report_md = render_markdown_report(result)
                 st.download_button("Download Markdown report", report_md, file_name="datapilot_report.md")
                 try:
-                    import io
-                    pdf_buffer = io.BytesIO()
-                    render_pdf_report(result, "/tmp/_datapilot_report.pdf")
-                    with open("/tmp/_datapilot_report.pdf", "rb") as f:
-                        st.download_button("Download PDF report", f.read(), file_name="datapilot_report.pdf", mime="application/pdf")
+                    import os
+                    import tempfile
+                    # A unique temp path per call -- a shared hardcoded path
+                    # here would let two concurrent sessions race on the
+                    # same file (one session's download could get another
+                    # session's report). See README "Multi-user and session
+                    # isolation" for the same principle applied elsewhere.
+                    fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="datapilot_report_")
+                    os.close(fd)
+                    try:
+                        render_pdf_report(result, pdf_path)
+                        with open(pdf_path, "rb") as f:
+                            st.download_button("Download PDF report", f.read(), file_name="datapilot_report.pdf", mime="application/pdf")
+                    finally:
+                        os.remove(pdf_path)
                 except Exception as exc:
                     st.caption(f"PDF export unavailable: {exc}")
                 st.markdown(report_md)
