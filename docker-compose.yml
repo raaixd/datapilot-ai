@@ -5,8 +5,9 @@ services:
       - "${API_PORT:-8000}:8000"
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-6}
+      - LLM_MODEL=${LLM_MODEL:-llama-3.3-70b-versatile}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - DATABASE_BACKEND=${DATABASE_BACKEND:-sqlite}
       - MAX_RESULT_ROWS=${MAX_RESULT_ROWS:-1000}
@@ -21,11 +22,13 @@ services:
       - "${FRONTEND_PORT:-8501}:8501"
     environment:
       - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-6}
+      - LLM_MODEL=${LLM_MODEL:-llama-3.3-70b-versatile}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - DATABASE_BACKEND=${DATABASE_BACKEND:-sqlite}
       - MAX_RESULT_ROWS=${MAX_RESULT_ROWS:-1000}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - API_BASE_URL=http://api:8000
     depends_on:
       - api

@@ -247,29 +247,85 @@ class AnalyticalDatabase:
             rows = self._conn.execute("SHOW TABLES").fetchall()
         return [r[0] for r in rows]
 
+    def drop_table(self, table_name: str) -> None:
+        """Drop a specific table if it exists."""
+        clean = _safe_identifier(table_name)
+        if self.backend == "sqlite":
+            conn = self._connect()
+            try:
+                conn.execute(f'DROP TABLE IF EXISTS "{clean}"')
+                conn.commit()
+            finally:
+                self._disconnect(conn)
+        else:
+            self._conn.execute(f'DROP TABLE IF EXISTS "{clean}"')
+
     def drop_all_tables(self) -> None:
-        """Drop every table currently loaded. This app's planner assumes a
-        single-table workflow (see README 'Known limitations') and always
-        operates on `next(iter(schema))` -- if a second dataset were loaded
-        under a DIFFERENT table name without dropping the first, both
-        tables would exist simultaneously and which one the planner picks
-        would depend on dict/SQL ordering, not on which one the user
-        actually meant. Callers that want to replace "the" active dataset
-        (Streamlit's uploader, the API's /upload without reusing the same
-        table name) should call this first."""
+        """Drop every table currently loaded."""
         for table_name in self.list_tables():
-            if self.backend == "sqlite":
-                conn = self._connect()
-                try:
-                    conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
-                    conn.commit()
-                finally:
-                    self._disconnect(conn)
-            else:
-                self._conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+            self.drop_table(table_name)
 
     def describe_schema(self) -> dict[str, TableSchema]:
         return {name: self.describe_table(name) for name in self.list_tables()}
+
+    def detect_relationships(self, schema: dict[str, TableSchema] | None = None) -> list[dict]:
+        """Discover potential relationships (foreign keys or shared keys) across loaded tables.
+
+        Uses deterministic column-name heuristics:
+        - Common identifiers across tables (e.g. 'customer_id', 'product_id', 'order_id')
+        - Suffix matches (table 'customer' with 'id' <-> table 'orders' with 'customer_id')
+        """
+        if schema is None:
+            schema = self.describe_schema()
+
+        relationships: list[dict] = []
+        table_names = list(schema.keys())
+
+        for i, t1 in enumerate(table_names):
+            cols1 = {col[0].lower(): col[0] for col in schema[t1].columns}
+            for t2 in table_names[i + 1 :]:
+                cols2 = {col[0].lower(): col[0] for col in schema[t2].columns}
+
+                for col_lower, orig1 in cols1.items():
+                    if col_lower in cols2:
+                        orig2 = cols2[col_lower]
+                        is_key = any(k in col_lower for k in ["id", "code", "key", "num", "no"])
+                        relationships.append(
+                            {
+                                "from_table": t1,
+                                "from_column": orig1,
+                                "to_table": t2,
+                                "to_column": orig2,
+                                "confidence": "high" if is_key else "medium",
+                                "type": "shared_key" if is_key else "shared_column",
+                            }
+                        )
+
+                t1_stem = t1.lower().rstrip("s_")
+                t2_stem = t2.lower().rstrip("s_")
+                if "id" in cols1 and f"{t1_stem}_id" in cols2:
+                    relationships.append(
+                        {
+                            "from_table": t2,
+                            "from_column": cols2[f"{t1_stem}_id"],
+                            "to_table": t1,
+                            "to_column": cols1["id"],
+                            "confidence": "high",
+                            "type": "foreign_key",
+                        }
+                    )
+                if "id" in cols2 and f"{t2_stem}_id" in cols1:
+                    relationships.append(
+                        {
+                            "from_table": t1,
+                            "from_column": cols1[f"{t2_stem}_id"],
+                            "to_table": t2,
+                            "to_column": cols2["id"],
+                            "confidence": "high",
+                            "type": "foreign_key",
+                        }
+                    )
+        return relationships
 
     def query(self, sql: str, max_rows: int = 1000) -> pd.DataFrame:
         """Execute an already-validated, read-only SQL statement and return a DataFrame."""

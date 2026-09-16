@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 from app.agents.orchestrator import AnalysisResult
 
 
-def build_chart(result: AnalysisResult) -> go.Figure | None:
+def build_chart(result: AnalysisResult, dark_mode: bool = True) -> go.Figure | None:
     """Build the chart type recommended by the analysis plan from the
     result preview rows. Returns None if there is nothing sensible to plot."""
     if not result.success or not result.result_preview:
@@ -43,19 +43,28 @@ def build_chart(result: AnalysisResult) -> go.Figure | None:
     y = [row[metric_col] for row in rows]
 
     chart_type = result.chart_type or "bar"
-    title = result.question
     axis_labels = {"x": label_col, "y": metric_col.replace("_", " ")}
 
     if chart_type == "line":
-        fig = px.line(x=x, y=y, markers=True, labels=axis_labels, title=title)
+        fig = px.line(x=x, y=y, markers=True, labels=axis_labels)
     elif chart_type == "pie":
-        fig = px.pie(names=x, values=y, title=title)
+        fig = px.pie(names=x, values=y)
     elif chart_type == "scatter":
-        fig = px.scatter(x=x, y=y, labels=axis_labels, title=title)
+        fig = px.scatter(x=x, y=y, labels=axis_labels)
     else:  # default: bar
-        fig = px.bar(x=x, y=y, labels=axis_labels, title=title)
+        fig = px.bar(x=x, y=y, labels=axis_labels)
 
-    fig.update_layout(template="plotly_white", margin=dict(l=40, r=20, t=60, b=40))
+    template = "plotly_dark" if dark_mode else "plotly_white"
+    fig.update_layout(
+        template=template,
+        margin=dict(l=30, r=20, t=30, b=30),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, -apple-system, sans-serif", size=12, color="#94A3B8"),
+    )
+    if dark_mode:
+        fig.update_xaxes(gridcolor="rgba(255, 255, 255, 0.06)", zerolinecolor="rgba(255, 255, 255, 0.08)")
+        fig.update_yaxes(gridcolor="rgba(255, 255, 255, 0.06)", zerolinecolor="rgba(255, 255, 255, 0.08)")
     return fig
 
 

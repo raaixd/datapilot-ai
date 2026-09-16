@@ -88,3 +88,22 @@ def build_insight_user_prompt(question: str, sql: str, result_preview: str, metr
         f"TASK: insight\nQUESTION: {question}\nSQL: {sql}\n"
         f"RESULT_PREVIEW:\n{result_preview}\nMETRICS:\n{metrics_json}\n"
     )
+
+
+SQL_CORRECTION_SYSTEM_PROMPT = """You are an expert SQL engineer repairing a query for a read-only analytics tool.
+Given the previous failing SQL query, the database error message, and the database schema, produce ONLY a single, corrected SQL SELECT statement (no prose, no markdown fences, no semicolon-separated statements).
+Only SELECT (or WITH ... SELECT) is permitted. You must never produce INSERT, UPDATE, DELETE, DROP, or any destructive/mutation statement.
+Only reference tables and columns that exist in the provided schema.
+"""
+
+
+def build_sql_correction_prompt(
+    failing_sql: str, error_message: str, schema_description: str, question: str = ""
+) -> str:
+    return (
+        f"TASK: correct_sql\n"
+        f"QUESTION: {question}\n"
+        f"FAILING_SQL:\n{failing_sql}\n"
+        f"ERROR:\n{error_message}\n"
+        f"SCHEMA:\n{schema_description}\n"
+    )

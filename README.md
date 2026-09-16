@@ -60,7 +60,11 @@ both gaps:
 
 **Implemented and verified** (see [Testing](#testing) / [Evaluation](#evaluation) for how):
 
-- CSV **and Excel (.xlsx)** upload -- no fixed pre-seeded schema.
+- CSV, **Excel (.xlsx)**, and **ZIP archive (multi-table)** upload -- with automatic schema discovery and relationship detection across tables.
+- **Hermes-inspired minimal dark SaaS interface**: clean typography, card surfaces, responsive layout, table registry, and dark Plotly visual charts.
+- **Self-correcting SQL execution loop**: if an executable query encounters a runtime database error, context is fed back to the LLM for up to 2 safe retries -- with complete re-validation on every step.
+- **Groq Cloud API support**: native high-speed cloud inference using `llama-3.3-70b-versatile` via `LLM_PROVIDER=groq` (alongside Anthropic, Ollama, and deterministic Mock mode).
+- **Unified Frontend/Backend Client**: Streamlit can run zero-config in-process or communicate over HTTP with the FastAPI service via `DataPilotApiClient`.
 - **Scope classification before planning**: every question is first
   classified `in_scope | ambiguous | out_of_scope | unsafe` -- an
   unrelated question ("what is the meaning of life?") gets an honest,
@@ -107,7 +111,7 @@ both gaps:
   data quality warnings, and follow-up questions.
 - Markdown and PDF report export.
 - Provider-agnostic LLM layer: deterministic offline mock (default, used
-  by tests) / Anthropic API / local Ollama model, swapped with one
+  by tests) / Groq API / Anthropic API / local Ollama model, swapped with one
   environment variable. The system never claims a live model was used when
   running in mock mode (`AnalysisResult.llm_provider`).
 - A real evaluation suite across **two datasets with different schemas**:
@@ -274,10 +278,12 @@ out of the box with **zero API keys** using `LLM_PROVIDER=mock`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `LLM_PROVIDER` | `mock` | `mock` \| `anthropic` \| `ollama` |
+| `LLM_PROVIDER` | `mock` | `mock` \| `groq` \| `anthropic` \| `ollama` |
+| `GROQ_API_KEY` | (empty) | required if `LLM_PROVIDER=groq` (high-speed Llama 3 cloud inference). See [`docs/GROQ_SETUP.md`](docs/GROQ_SETUP.md). |
 | `ANTHROPIC_API_KEY` | (empty) | required only if `LLM_PROVIDER=anthropic`; never hardcode this -- it's read from the environment. Missing it raises a clear `ValueError` at startup, not a silent failure. |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | used only if `LLM_PROVIDER=ollama` |
-| `LLM_MODEL` | `claude-sonnet-4-6` | model name passed to whichever provider is selected |
+| `LLM_MODEL` | `llama-3.3-70b-versatile` | model name passed to whichever provider is selected (`llama-3.3-70b-versatile` for Groq, `claude-sonnet-4-6` for Anthropic) |
+| `API_BASE_URL` | (empty / none) | optional: if set (e.g. `http://localhost:8000`), Streamlit frontend operates as an HTTP client connecting to FastAPI |
 | `DATABASE_BACKEND` | `sqlite` | `sqlite` (tested) \| `duckdb` (untested here, requires `pip install duckdb`) |
 | `DATABASE_PATH` | `data/datapilot.db` | ignored by the session-based paths (Streamlit/API), which each get their own auto-generated temp file -- see `AnalyticalDatabase.create_session_database()`; still used by the plain `:memory:` constructor path (tests/eval/CLI) |
 | `MAX_RESULT_ROWS` | `1000` | hard cap enforced by the SQL validator, not just a suggestion |

@@ -22,6 +22,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 SUPPORTED_EXTENSIONS = (".csv", ".xlsx", ".xls")
+SUPPORTED_ARCHIVE_EXTENSIONS = (".zip",)
 
 # Tried in order for CSV decoding. utf-8-sig handles both plain UTF-8 and a
 # leading BOM transparently. cp1252 (Windows-1252) is the most common
@@ -106,3 +107,40 @@ def _rewind(file_or_path) -> None:
     seek = getattr(file_or_path, "seek", None)
     if callable(seek):
         seek(0)
+
+
+def load_tabular_archive(file_or_path, filename: str = "archive.zip") -> dict[str, pd.DataFrame]:
+    """Load a .zip archive containing one or more CSV or Excel files.
+
+    Returns a dict mapping sanitized table names to loaded DataFrames.
+    Skips hidden/system metadata files (like __MACOSX) and subdirectories.
+    """
+    import io
+    import zipfile
+
+    tables: dict[str, pd.DataFrame] = {}
+    try:
+        with zipfile.ZipFile(file_or_path, "r") as z:
+            for member_name in z.namelist():
+                # Skip directories and hidden/system metadata files
+                base_name = Path(member_name).name
+                if member_name.endswith("/") or base_name.startswith((".", "__MACOSX")):
+                    continue
+                ext = Path(member_name).suffix.lower()
+                if ext in SUPPORTED_EXTENSIONS:
+                    data = z.read(member_name)
+                    table_name = Path(member_name).stem
+                    # Clean table name
+                    table_name = "".join(ch if ch.isalnum() else "_" for ch in table_name).strip("_")
+                    if not table_name:
+                        table_name = "dataset"
+                    df = load_tabular_file(io.BytesIO(data), member_name)
+                    tables[table_name] = df
+    except zipfile.BadZipFile as exc:
+        raise ValueError(f"'{filename}' is not a valid zip archive.") from exc
+
+    if not tables:
+        raise ValueError(
+            f"'{filename}' did not contain any valid CSV or Excel files ({', '.join(SUPPORTED_EXTENSIONS)})."
+        )
+    return tables

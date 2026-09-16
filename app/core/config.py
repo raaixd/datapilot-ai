@@ -23,8 +23,10 @@ class Settings:
     # test suite and the evaluation harness so neither needs network access.
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "mock"))
     anthropic_api_key: str | None = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    groq_api_key: str | None = field(default_factory=lambda: os.getenv("GROQ_API_KEY"))
     ollama_base_url: str = field(default_factory=lambda: os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-6"))
+    api_base_url: str | None = field(default_factory=lambda: os.getenv("API_BASE_URL"))
 
     # Data layer
     database_backend: str = field(

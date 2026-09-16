@@ -186,9 +186,36 @@ class MockLLMClient(LLMClient):
             return self._plan(user_prompt)
         if "TASK: sql" in user_prompt:
             return self._sql(user_prompt)
+        if "TASK: correct_sql" in user_prompt:
+            return self._correct_sql(user_prompt)
         if "TASK: insight" in user_prompt:
             return self._insight(user_prompt)
         return ""
+
+    def _correct_sql(self, user_prompt: str) -> str:
+        sql_match = re.search(r"FAILING_SQL:\n(.*?)(?:\nERROR:|$)", user_prompt, re.DOTALL)
+        err_match = re.search(r"ERROR:\n(.*?)(?:\nSCHEMA:|$)", user_prompt, re.DOTALL)
+        schema_match = re.search(r"SCHEMA:\n([\s\S]*)", user_prompt)
+        failing_sql = (sql_match.group(1) if sql_match else "").strip()
+        error_msg = (err_match.group(1) if err_match else "").strip()
+        schema_text = schema_match.group(1) if schema_match else ""
+        tables = _parse_schema_block(schema_text)
+
+        col_err = re.search(r"no such column:\s*([A-Za-z0-9_.]+)", error_msg, re.IGNORECASE)
+        if col_err and tables:
+            bad_col = col_err.group(1).split(".")[-1]
+            all_cols = [c[0] for t in tables.values() for c in t["columns"]]
+            if all_cols:
+                target_col = all_cols[0]
+                return failing_sql.replace(f'"{bad_col}"', f'"{target_col}"').replace(bad_col, target_col)
+
+        tbl_err = re.search(r"no such table:\s*([A-Za-z0-9_.]+)", error_msg, re.IGNORECASE)
+        if tbl_err and tables:
+            bad_tbl = tbl_err.group(1)
+            valid_tbl = next(iter(tables))
+            return failing_sql.replace(f'"{bad_tbl}"', f'"{valid_tbl}"').replace(bad_tbl, valid_tbl)
+
+        return failing_sql
 
     # -- planning -----------------------------------------------------
     def _plan(self, user_prompt: str) -> str:
@@ -226,10 +253,30 @@ class MockLLMClient(LLMClient):
                 )
             )
 
-        table_name = next(iter(tables))  # single-table CSV workflow: use the loaded table
+        qlower = question.lower()
+        if len(tables) == 1:
+            table_name = next(iter(tables))
+        else:
+            best_table = next(iter(tables))
+            best_score = -1
+            for t_name, t_data in tables.items():
+                score = 0
+                if t_name.lower() in qlower:
+                    score += 5
+                for col, _ in t_data["columns"]:
+                    if col.lower() in qlower:
+                        score += 3
+                for smp_list in t_data["samples"].values():
+                    for s in smp_list:
+                        if s.lower() in qlower:
+                            score += 2
+                if score > best_score:
+                    best_score = score
+                    best_table = t_name
+            table_name = best_table
+
         columns = tables[table_name]["columns"]
         samples = tables[table_name]["samples"]
-        qlower = question.lower()
 
         is_count_question = any(h in qlower for h in COUNT_HINTS)
         sort_phrase_hint = any(p in qlower for p in _ASC_PHRASES + _DESC_PHRASES)

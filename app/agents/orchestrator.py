@@ -63,6 +63,8 @@ class AnalysisResult:
     )  # e.g. "I can't email this" -- surfaced alongside a successful answer
     debug_info: str | None = None  # raw technical detail (exception text, validator errors) -- NEVER shown to
     # normal users; only surfaced by a caller when Settings.debug_mode is True
+    retry_count: int = 0
+    correction_history: list[dict] = field(default_factory=list)
 
 
 class Orchestrator:
@@ -172,20 +174,69 @@ class Orchestrator:
                 debug_info="SQL validation errors: " + "; ".join(validation.errors),
             )
 
-        try:
-            result_df = self._db.query(validation.safe_sql, max_rows=self._max_result_rows)
-        except Exception as exc:  # surfaced, never swallowed
-            logger.exception("Query execution failed")
+        current_sql = validation.safe_sql
+        result_df = None
+        retries_remaining = 2
+        retry_count = 0
+        correction_history: list[dict] = []
+        last_error = None
+
+        while True:
+            try:
+                result_df = self._db.query(current_sql, max_rows=self._max_result_rows)
+                break
+            except Exception as exc:  # surfaced, never swallowed
+                last_error = exc
+                logger.warning("Query execution failed (attempt %d): %s", retry_count + 1, exc)
+                correction_history.append({"attempt": retry_count + 1, "sql": current_sql, "error": str(exc)})
+                if retries_remaining <= 0:
+                    break
+                retries_remaining -= 1
+                retry_count += 1
+
+                try:
+                    corrected_raw = self._sql_generator.correct(
+                        failing_sql=current_sql,
+                        error_message=str(exc),
+                        schema=schema,
+                        question=question,
+                    )
+                except Exception as gen_exc:
+                    logger.warning("SQL correction generation failed: %s", gen_exc)
+                    break
+
+                # Re-run full SQL safety validation on the regenerated query
+                corrected_val = validate_sql(corrected_raw, schema, max_result_rows=self._max_result_rows)
+                if not corrected_val.is_valid:
+                    logger.warning("Corrected SQL failed safety validation: %s", corrected_val.errors)
+                    return self._fail(
+                        question,
+                        "That question produced a query that failed execution, and the corrected query "
+                        "did not pass our safety checks.",
+                        plan=plan,
+                        sql=corrected_raw,
+                        warnings=warnings,
+                        scope="in_scope",
+                        debug_info="SQL correction validation errors: " + "; ".join(corrected_val.errors),
+                        retry_count=retry_count,
+                        correction_history=correction_history,
+                    )
+                current_sql = corrected_val.safe_sql
+                validation = corrected_val
+
+        if result_df is None:
             return self._fail(
                 question,
                 "I generated a query for that but it failed to run against your data. "
                 "This can happen with unusual column types or values -- try a simpler question.",
                 plan=plan,
-                sql=validation.safe_sql,
+                sql=current_sql,
                 warnings=warnings,
                 validation_warnings=validation.warnings,
                 scope="in_scope",
-                debug_info=f"Query execution failed: {exc!r}",
+                debug_info=f"Query execution failed after {retry_count} retries: {last_error!r}",
+                retry_count=retry_count,
+                correction_history=correction_history,
             )
 
         metric_alias = plan.metric_alias or "value"
@@ -209,6 +260,8 @@ class Orchestrator:
             llm_provider=self._llm_provider,
             scope="in_scope",
             notes=notes,
+            retry_count=retry_count,
+            correction_history=correction_history,
         )
 
     def _answer_from_profile(
@@ -418,6 +471,8 @@ class Orchestrator:
         scope: str = "out_of_scope",
         clarification_options: list[str] | None = None,
         debug_info: str | None = None,
+        retry_count: int = 0,
+        correction_history: list[dict] | None = None,
     ) -> AnalysisResult:
         return AnalysisResult(
             question=question,
@@ -431,6 +486,8 @@ class Orchestrator:
             scope=scope,
             clarification_options=clarification_options or [],
             debug_info=debug_info,
+            retry_count=retry_count,
+            correction_history=correction_history or [],
         )
 
     def _numeric_column_options(self, schema) -> list[str]:

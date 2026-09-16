@@ -6,7 +6,12 @@ from dataclasses import asdict
 from app.agents.planner import AnalysisPlan, describe_schema_text
 from app.data.database import TableSchema
 from app.llm.base import LLMClient
-from app.llm.prompts import SQL_GENERATOR_SYSTEM_PROMPT, build_sql_user_prompt
+from app.llm.prompts import (
+    SQL_CORRECTION_SYSTEM_PROMPT,
+    SQL_GENERATOR_SYSTEM_PROMPT,
+    build_sql_correction_prompt,
+    build_sql_user_prompt,
+)
 from app.rag.retriever import retrieve
 
 
@@ -19,6 +24,23 @@ class SQLGenerator:
         retrieved = retrieve(plan.question, schema)
         user_prompt = build_sql_user_prompt(json.dumps(asdict(plan)), schema_text, retrieved.to_prompt_text())
         raw_sql = self._llm.complete(SQL_GENERATOR_SYSTEM_PROMPT, user_prompt)
+        return _strip_code_fence_and_prose(raw_sql)
+
+    def correct(
+        self,
+        failing_sql: str,
+        error_message: str,
+        schema: dict[str, TableSchema],
+        question: str = "",
+    ) -> str:
+        schema_text = describe_schema_text(schema)
+        user_prompt = build_sql_correction_prompt(
+            failing_sql=failing_sql,
+            error_message=error_message,
+            schema_description=schema_text,
+            question=question,
+        )
+        raw_sql = self._llm.complete(SQL_CORRECTION_SYSTEM_PROMPT, user_prompt)
         return _strip_code_fence_and_prose(raw_sql)
 
 

@@ -37,7 +37,12 @@ from app.api.schemas import DataQualityWarningOut, HealthResponse, QueryRequest,
 from app.api.session_manager import SessionManager, SessionNotFoundError
 from app.core.config import get_settings
 from app.core.logging_config import configure_logging
-from app.data.loader import MissingOptionalDependencyError, UnsupportedFileTypeError, load_tabular_file
+from app.data.loader import (
+    MissingOptionalDependencyError,
+    UnsupportedFileTypeError,
+    load_tabular_archive,
+    load_tabular_file,
+)
 from app.data.profiler import DataProfiler
 
 configure_logging()
@@ -45,9 +50,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="DataPilot AI",
-    version="0.3.0",
-    description="Natural-language business analytics over an uploaded CSV/Excel file. "
-    "Each client gets an isolated session -- see /upload. Check /health for current configuration.",
+    version="0.4.0",
+    description="Natural-language business analytics over uploaded tabular datasets. "
+    "Supports single CSV/Excel and multi-table ZIP archives with session isolation.",
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -70,12 +75,12 @@ _profiler = DataProfiler()
 
 @app.post("/upload", response_model=UploadResponse)
 async def upload_dataset(file: UploadFile = File(...), session_id: str | None = Form(default=None)):  # noqa: B008
-    """Upload a .csv, .xlsx, or .xls file. If `session_id` is omitted, a new
-    isolated session is created and returned -- pass it back on subsequent
-    /query calls. If `session_id` is provided and still active, the new
-    file REPLACES that session's current table (see README 'How the
-    application resets between datasets')."""
+    """Upload a .csv, .xlsx, .xls, or .zip archive containing tables.
+
+    If `session_id` is omitted, a new isolated session is created and returned.
+    """
     raw = await file.read()
+    filename = file.filename or "upload.csv"
 
     size_mb = len(raw) / (1024 * 1024)
     if size_mb > _settings.max_upload_mb:
@@ -85,15 +90,6 @@ async def upload_dataset(file: UploadFile = File(...), session_id: str | None = 
             f"(set via MAX_UPLOAD_MB).",
         )
 
-    try:
-        df = load_tabular_file(io.BytesIO(raw), file.filename or "upload.csv")
-    except UnsupportedFileTypeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except MissingOptionalDependencyError as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"Could not parse '{file.filename}': {exc}") from exc
-
     if session_id:
         try:
             state = _sessions.get_session(session_id)
@@ -102,25 +98,78 @@ async def upload_dataset(file: UploadFile = File(...), session_id: str | None = 
     else:
         state = _sessions.create_session()
 
-    state.profile = _profiler.profile(df, dataset_name=file.filename or "uploaded.csv")
-    table_name = (file.filename or "dataset").rsplit(".", 1)[0]
-    state.db.drop_all_tables()  # one active dataset per session -- see README "Known limitations"
-    schema = state.db.load_dataframe(df, table_name)
+    tables_dict = {}
+    if filename.lower().endswith(".zip"):
+        try:
+            tables_dict = load_tabular_archive(io.BytesIO(raw), filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        try:
+            df = load_tabular_file(io.BytesIO(raw), filename)
+            table_name = filename.rsplit(".", 1)[0]
+            table_name = "".join(ch if ch.isalnum() else "_" for ch in table_name).strip("_") or "dataset"
+            tables_dict[table_name] = df
+        except UnsupportedFileTypeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except MissingOptionalDependencyError as exc:
+            raise HTTPException(status_code=501, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Could not parse '{filename}': {exc}") from exc
+
+    state.db.drop_all_tables()
+    loaded_schemas = {}
+    for tbl_name, df in tables_dict.items():
+        loaded_schemas[tbl_name] = state.db.load_dataframe(df, tbl_name)
+
+    # Profile primary table
+    primary_tbl = next(iter(tables_dict))
+    state.profile = _profiler.profile(tables_dict[primary_tbl], dataset_name=primary_tbl)
+
+    schema_all = state.db.describe_schema()
+    relationships = state.db.detect_relationships(schema_all)
+
     logger.info(
-        "Session %s: loaded '%s' (%d rows) as table '%s'",
+        "Session %s: loaded %d table(s) from '%s'",
         state.session_id,
-        file.filename,
-        schema.row_count,
-        schema.name,
+        len(tables_dict),
+        filename,
     )
 
+    primary_schema = loaded_schemas[primary_tbl]
     return UploadResponse(
         session_id=state.session_id,
-        table=schema.name,
-        row_count=schema.row_count,
-        columns=[c[0] for c in schema.columns],
+        table=primary_schema.name,
+        row_count=primary_schema.row_count,
+        columns=[c[0] for c in primary_schema.columns],
         profile=state.profile.to_dict(),
+        tables=list(schema_all.keys()),
+        relationships=relationships,
     )
+
+
+@app.get("/tables/{session_id}")
+async def get_session_tables(session_id: str):
+    """List loaded tables, schema metadata, and detected relationships for a session."""
+    try:
+        state = _sessions.get_session(session_id)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    schema = state.db.describe_schema()
+    relationships = state.db.detect_relationships(schema)
+    return {
+        "session_id": session_id,
+        "tables": [
+            {
+                "name": t.name,
+                "row_count": t.row_count,
+                "columns": [{"name": c[0], "type": c[1]} for c in t.columns],
+            }
+            for t in schema.values()
+        ],
+        "relationships": relationships,
+    }
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -152,6 +201,8 @@ async def run_query(request: QueryRequest):
         scope=result.scope,
         clarification_options=result.clarification_options,
         notes=result.notes,
+        retry_count=result.retry_count,
+        correction_history=result.correction_history,
     )
 
 

@@ -34,6 +34,8 @@ class UploadResponse(BaseModel):
     row_count: int
     columns: list[str]
     profile: dict
+    tables: list[str] = []
+    relationships: list[dict] = []
 
 
 class FilterOut(BaseModel):
@@ -123,6 +125,8 @@ class QueryResponse(BaseModel):
     )
     clarification_options: list[str] = []
     notes: list[str] = []
+    retry_count: int = 0
+    correction_history: list[dict] = []
 
 
 class HealthResponse(BaseModel):
