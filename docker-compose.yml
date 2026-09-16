@@ -1,0 +1,31 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-6}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
+      - DATABASE_BACKEND=${DATABASE_BACKEND:-sqlite}
+      - MAX_RESULT_ROWS=${MAX_RESULT_ROWS:-1000}
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-50}
+      - SESSION_TTL_MINUTES=${SESSION_TTL_MINUTES:-120}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+  frontend:
+    build: .
+    command: ["streamlit", "run", "frontend/streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501"]
+    ports:
+      - "${FRONTEND_PORT:-8501}:8501"
+    environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-claude-sonnet-4-6}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
+      - DATABASE_BACKEND=${DATABASE_BACKEND:-sqlite}
+      - MAX_RESULT_ROWS=${MAX_RESULT_ROWS:-1000}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - api

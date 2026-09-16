@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+.env
+.venv/
+venv/
+
+# Local databases and generated reports -- never commit these
+*.db
+*.sqlite
+*.sqlite3
+data/datapilot.db
+outputs/
+
+.DS_Store
+.idea/
+.vscode/

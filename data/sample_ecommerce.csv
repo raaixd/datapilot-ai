@@ -1,0 +1,301 @@
+transaction_id,transaction_date,sales_channel,item_name,units_sold,sales_amount
+TXN-00001,2024-02-18,Online,Water Bottle,2,227.66
+TXN-00002,2024-02-16,Online,Notebook,6,109.32
+TXN-00003,2024-10-13,Online,Notebook,4,56.48
+TXN-00004,2024-06-28,Retail Store,Desk Lamp,4,108.2
+TXN-00005,2024-07-31,Online,Headphones,5,151.85
+TXN-00006,2024-08-04,Retail Store,Backpack,5,118.6
+TXN-00007,2024-09-13,Retail Store,Notebook,1,13.74
+TXN-00008,2024-01-11,Online,Notebook,2,58.2
+TXN-00009,2024-06-23,Retail Store,Desk Lamp,6,184.14
+TXN-00010,2024-02-23,Retail Store,Water Bottle,1,60.15
+TXN-00011,2024-05-24,Marketplace,Backpack,1,79.49
+TXN-00012,2024-11-30,Retail Store,Desk Lamp,5,234.2
+TXN-00013,2024-07-16,Online,Water Bottle,2,48.68
+TXN-00014,2024-01-26,Online,Water Bottle,4,63.56
+TXN-00015,2024-07-14,Marketplace,Notebook,6,211.5
+TXN-00016,2024-02-16,Retail Store,Backpack,7,172.48
+TXN-00017,2024-09-28,Online,Desk Lamp,6,361.92
+TXN-00018,2024-12-07,Retail Store,Desk Lamp,2,210.36
+TXN-00019,2024-12-18,Marketplace,Water Bottle,3,262.17
+TXN-00020,2024-08-11,Marketplace,Notebook,6,170.22
+TXN-00021,2024-11-08,Retail Store,Desk Lamp,6,54.72
+TXN-00022,2024-05-12,Online,Notebook,7,89.46
+TXN-00023,2024-02-22,Online,Headphones,6,330.72
+TXN-00024,2024-07-03,Marketplace,Water Bottle,7,327.67
+TXN-00025,2024-06-08,Retail Store,Desk Lamp,3,250.44
+TXN-00026,2024-08-26,Retail Store,Water Bottle,7,102.55
+TXN-00027,2024-12-24,Marketplace,Backpack,3,102.81
+TXN-00028,2024-04-09,Retail Store,Headphones,2,167.72
+TXN-00029,2024-11-04,Retail Store,Notebook,4,281.32
+TXN-00030,2024-02-19,Marketplace,Water Bottle,2,128.84
+TXN-00031,2024-05-05,Marketplace,Desk Lamp,1,108.69
+TXN-00032,2024-10-10,Retail Store,Desk Lamp,2,36.06
+TXN-00033,2024-03-30,Retail Store,Backpack,3,82.44
+TXN-00034,2024-08-29,Online,Notebook,3,210.12
+TXN-00035,2024-06-14,Online,Headphones,1,70.01
+TXN-00036,2024-07-03,Marketplace,Notebook,1,117.71
+TXN-00037,2024-12-04,Online,Headphones,1,117.4
+TXN-00038,2024-10-21,Online,Water Bottle,2,145.08
+TXN-00039,2024-10-29,Retail Store,Notebook,6,553.62
+TXN-00040,2024-07-16,Online,Backpack,1,85.2
+TXN-00041,2024-12-19,Online,Notebook,3,60.87
+TXN-00042,2024-12-19,Retail Store,Notebook,7,519.82
+TXN-00043,2024-02-18,Marketplace,Water Bottle,3,120.48
+TXN-00044,2024-03-14,Online,Notebook,3,138.84
+TXN-00045,2024-04-21,Retail Store,Backpack,6,137.82
+TXN-00046,2024-07-18,Online,Backpack,5,29.8
+TXN-00047,2024-10-23,Retail Store,Notebook,2,206.34
+TXN-00048,2024-06-23,Marketplace,Backpack,4,349.84
+TXN-00049,2024-12-20,Marketplace,Desk Lamp,4,366.0
+TXN-00050,2024-05-07,Marketplace,Water Bottle,6,228.72
+TXN-00051,2024-11-30,Online,Water Bottle,3,159.0
+TXN-00052,2024-07-31,Retail Store,Headphones,6,151.5
+TXN-00053,2024-09-16,Retail Store,Backpack,4,297.0
+TXN-00054,2024-03-25,Marketplace,Backpack,3,304.53
+TXN-00055,2024-08-01,Marketplace,Desk Lamp,3,283.68
+TXN-00056,2024-10-15,Marketplace,Notebook,4,449.56
+TXN-00057,2024-11-15,Online,Backpack,4,139.8
+TXN-00058,2024-11-08,Online,Water Bottle,1,85.65
+TXN-00059,2024-12-14,Retail Store,Desk Lamp,3,58.71
+TXN-00060,2024-02-16,Retail Store,Notebook,2,133.34
+TXN-00061,2024-10-07,Marketplace,Backpack,4,70.72
+TXN-00062,2024-06-17,Retail Store,Backpack,2,134.28
+TXN-00063,2024-09-03,Retail Store,Backpack,7,471.38
+TXN-00064,2024-04-09,Marketplace,Backpack,3,134.7
+TXN-00065,2024-01-06,Online,Headphones,4,180.76
+TXN-00066,2024-01-30,Retail Store,Backpack,3,260.34
+TXN-00067,2024-12-16,Online,Desk Lamp,5,301.6
+TXN-00068,2024-11-18,Online,Notebook,5,259.4
+TXN-00069,2024-04-19,Marketplace,Desk Lamp,3,53.88
+TXN-00070,2024-06-03,Marketplace,Water Bottle,3,112.38
+TXN-00071,2024-03-27,Online,Backpack,5,512.05
+TXN-00072,2024-02-23,Marketplace,Desk Lamp,3,350.34
+TXN-00073,2024-11-04,Marketplace,Desk Lamp,4,191.68
+TXN-00074,2024-08-30,Marketplace,Desk Lamp,6,630.84
+TXN-00075,2024-01-28,Marketplace,Headphones,1,105.48
+TXN-00076,2024-03-13,Retail Store,Headphones,1,30.08
+TXN-00077,2024-07-21,Online,Desk Lamp,4,145.96
+TXN-00078,2024-11-20,Marketplace,Backpack,1,85.04
+TXN-00079,2024-12-24,Online,Desk Lamp,4,160.76
+TXN-00080,2024-03-19,Retail Store,Desk Lamp,1,114.86
+TXN-00081,2024-08-08,Marketplace,Backpack,2,93.96
+TXN-00082,2024-01-12,Retail Store,Water Bottle,7,622.79
+TXN-00083,2024-03-03,Online,Notebook,4,345.36
+TXN-00084,2024-03-13,Online,Backpack,5,147.85
+TXN-00085,2024-06-08,Online,Notebook,2,209.18
+TXN-00086,2024-05-04,Retail Store,Headphones,6,256.8
+TXN-00087,2024-09-18,Marketplace,Headphones,2,35.32
+TXN-00088,2024-06-17,Marketplace,Desk Lamp,7,75.39
+TXN-00089,2024-05-02,Online,Backpack,1,56.96
+TXN-00090,2024-11-22,Marketplace,Headphones,2,155.58
+TXN-00091,2024-08-13,Retail Store,Backpack,7,253.47
+TXN-00092,2024-09-08,Marketplace,Headphones,7,712.74
+TXN-00093,2024-09-25,Retail Store,Desk Lamp,2,71.52
+TXN-00094,2024-05-02,Retail Store,Headphones,2,204.92
+TXN-00095,2024-11-16,Retail Store,Desk Lamp,7,61.6
+TXN-00096,2024-01-07,Marketplace,Notebook,4,140.84
+TXN-00097,2024-04-20,Retail Store,Notebook,5,116.7
+TXN-00098,2024-02-27,Online,Notebook,5,282.45
+TXN-00099,2024-01-02,Retail Store,Headphones,5,226.75
+TXN-00100,2024-12-24,Marketplace,Notebook,6,302.4
+TXN-00101,2024-02-02,Marketplace,Headphones,2,205.86
+TXN-00102,2024-06-14,Retail Store,Water Bottle,2,143.3
+TXN-00103,2024-10-22,Marketplace,Headphones,2,149.26
+TXN-00104,2024-09-05,Online,Desk Lamp,4,199.4
+TXN-00105,2024-11-04,Marketplace,Notebook,1,97.92
+TXN-00106,2024-01-20,Retail Store,Water Bottle,1,62.71
+TXN-00107,2024-06-27,Online,Desk Lamp,3,272.37
+TXN-00108,2024-01-13,Retail Store,Water Bottle,3,330.39
+TXN-00109,2024-03-09,Retail Store,Notebook,6,452.28
+TXN-00110,2024-10-31,Retail Store,Desk Lamp,7,385.28
+TXN-00111,2024-01-27,Online,Desk Lamp,3,105.96
+TXN-00112,2024-07-30,Marketplace,Notebook,7,769.16
+TXN-00113,2024-01-08,Marketplace,Notebook,6,557.76
+TXN-00114,2024-04-21,Online,Desk Lamp,5,484.75
+TXN-00115,2024-12-01,Marketplace,Notebook,4,121.84
+TXN-00116,2024-04-24,Retail Store,Notebook,6,331.32
+TXN-00117,2024-04-21,Online,Backpack,1,106.61
+TXN-00118,2024-02-02,Retail Store,Backpack,7,233.03
+TXN-00119,2024-10-05,Online,Backpack,2,197.2
+TXN-00120,2024-03-03,Retail Store,Desk Lamp,3,200.82
+TXN-00121,2024-06-28,Online,Backpack,6,180.96
+TXN-00122,2024-01-09,Retail Store,Desk Lamp,7,337.26
+TXN-00123,2024-01-08,Online,Water Bottle,1,13.77
+TXN-00124,2024-10-29,Online,Water Bottle,4,329.6
+TXN-00125,2024-01-03,Marketplace,Notebook,7,620.2
+TXN-00126,2024-06-16,Retail Store,Backpack,2,16.66
+TXN-00127,2024-06-02,Online,Backpack,4,158.64
+TXN-00128,2024-02-15,Marketplace,Headphones,4,373.64
+TXN-00129,2024-08-20,Retail Store,Notebook,1,28.04
+TXN-00130,2024-09-23,Online,Backpack,5,333.75
+TXN-00131,2024-12-20,Marketplace,Desk Lamp,4,390.72
+TXN-00132,2024-03-11,Online,Notebook,5,352.75
+TXN-00133,2024-11-28,Marketplace,Water Bottle,6,114.36
+TXN-00134,2024-01-23,Online,Backpack,5,547.75
+TXN-00135,2024-02-20,Marketplace,Water Bottle,7,636.09
+TXN-00136,2024-08-03,Retail Store,Notebook,1,69.97
+TXN-00137,2024-11-08,Online,Backpack,6,259.68
+TXN-00138,2024-11-18,Marketplace,Headphones,5,359.85
+TXN-00139,2024-09-23,Retail Store,Headphones,7,350.21
+TXN-00140,2024-01-10,Online,Notebook,7,130.55
+TXN-00141,2024-05-30,Marketplace,Headphones,5,95.25
+TXN-00142,2024-10-16,Marketplace,Headphones,5,51.05
+TXN-00143,2024-07-09,Online,Desk Lamp,4,98.36
+TXN-00144,2024-03-09,Retail Store,Backpack,7,232.68
+TXN-00145,2024-09-02,Marketplace,Desk Lamp,2,156.12
+TXN-00146,2024-02-03,Online,Backpack,4,286.88
+TXN-00147,2024-09-08,Marketplace,Backpack,7,510.37
+TXN-00148,2024-01-07,Retail Store,Water Bottle,6,597.18
+TXN-00149,2024-05-09,Online,Notebook,3,47.82
+TXN-00150,2024-04-15,Online,Backpack,1,49.72
+TXN-00151,2024-12-04,Marketplace,Headphones,3,42.36
+TXN-00152,2024-09-18,Marketplace,Backpack,7,372.12
+TXN-00153,2024-08-23,Marketplace,Desk Lamp,3,42.18
+TXN-00154,2024-06-26,Retail Store,Notebook,4,50.52
+TXN-00155,2024-04-13,Online,Desk Lamp,2,33.98
+TXN-00156,2024-11-03,Online,Backpack,7,348.88
+TXN-00157,2024-12-06,Online,Desk Lamp,4,371.04
+TXN-00158,2024-03-19,Online,Notebook,3,112.26
+TXN-00159,2024-03-29,Online,Notebook,1,90.31
+TXN-00160,2024-04-23,Marketplace,Backpack,5,159.15
+TXN-00161,2024-06-20,Online,Notebook,4,152.12
+TXN-00162,2024-04-02,Marketplace,Headphones,6,355.26
+TXN-00163,2024-05-25,Marketplace,Water Bottle,7,95.34
+TXN-00164,2024-12-18,Retail Store,Backpack,5,283.1
+TXN-00165,2024-05-12,Retail Store,Backpack,1,72.11
+TXN-00166,2024-12-04,Retail Store,Backpack,5,499.15
+TXN-00167,2024-06-30,Retail Store,Backpack,7,80.22
+TXN-00168,2024-05-02,Marketplace,Desk Lamp,7,678.93
+TXN-00169,2024-12-02,Retail Store,Water Bottle,3,211.53
+TXN-00170,2024-06-05,Marketplace,Headphones,1,71.51
+TXN-00171,2024-10-05,Marketplace,Headphones,2,21.74
+TXN-00172,2024-04-23,Online,Backpack,1,106.19
+TXN-00173,2024-12-25,Marketplace,Backpack,5,184.45
+TXN-00174,2024-09-25,Online,Backpack,4,271.36
+TXN-00175,2024-11-11,Online,Headphones,4,267.76
+TXN-00176,2024-01-15,Retail Store,Desk Lamp,7,767.62
+TXN-00177,2024-02-08,Marketplace,Water Bottle,2,148.32
+TXN-00178,2024-01-25,Retail Store,Desk Lamp,5,595.05
+TXN-00179,2024-07-10,Marketplace,Desk Lamp,7,221.9
+TXN-00180,2024-05-25,Online,Desk Lamp,3,243.45
+TXN-00181,2024-12-18,Marketplace,Desk Lamp,4,285.36
+TXN-00182,2024-03-29,Online,Notebook,1,64.06
+TXN-00183,2024-03-01,Online,Desk Lamp,3,231.54
+TXN-00184,2024-10-31,Online,Notebook,4,273.28
+TXN-00185,2024-04-18,Marketplace,Notebook,6,262.44
+TXN-00186,2024-09-24,Retail Store,Desk Lamp,4,315.12
+TXN-00187,2024-04-14,Marketplace,Notebook,6,87.54
+TXN-00188,2024-07-15,Marketplace,Desk Lamp,4,240.36
+TXN-00189,2024-01-30,Marketplace,Backpack,2,114.14
+TXN-00190,2024-08-26,Retail Store,Headphones,5,147.6
+TXN-00191,2024-11-25,Marketplace,Notebook,2,140.66
+TXN-00192,2024-09-06,Online,Desk Lamp,2,164.08
+TXN-00193,2024-11-12,Retail Store,Headphones,7,135.66
+TXN-00194,2024-10-08,Online,Water Bottle,7,274.05
+TXN-00195,2024-07-23,Retail Store,Headphones,6,72.78
+TXN-00196,2024-11-29,Retail Store,Notebook,3,221.01
+TXN-00197,2024-06-21,Marketplace,Headphones,5,71.95
+TXN-00198,2024-02-23,Marketplace,Headphones,1,31.38
+TXN-00199,2024-07-19,Online,Backpack,6,339.0
+TXN-00200,2024-08-13,Marketplace,Desk Lamp,3,170.85
+TXN-00201,2024-03-04,Online,Desk Lamp,2,17.58
+TXN-00202,2024-02-21,Retail Store,Water Bottle,7,797.58
+TXN-00203,2024-08-26,Retail Store,Notebook,4,125.8
+TXN-00204,2024-06-08,Marketplace,Desk Lamp,2,150.3
+TXN-00205,2024-06-22,Retail Store,Notebook,5,152.75
+TXN-00206,2024-10-10,Marketplace,Backpack,2,147.02
+TXN-00207,2024-09-03,Online,Backpack,5,227.85
+TXN-00208,2024-11-18,Retail Store,Backpack,7,291.48
+TXN-00209,2024-03-01,Marketplace,Headphones,3,178.68
+TXN-00210,2024-09-30,Marketplace,Water Bottle,3,217.29
+TXN-00211,2024-07-13,Marketplace,Backpack,2,147.58
+TXN-00212,2024-01-13,Retail Store,Water Bottle,6,505.08
+TXN-00213,2024-01-26,Online,Desk Lamp,3,107.67
+TXN-00214,2024-05-09,Online,Desk Lamp,1,15.53
+TXN-00215,2024-08-18,Online,Desk Lamp,3,102.42
+TXN-00216,2024-02-28,Retail Store,Headphones,7,297.99
+TXN-00217,2024-07-15,Marketplace,Headphones,1,74.85
+TXN-00218,2024-12-25,Online,Headphones,2,105.3
+TXN-00219,2024-02-21,Online,Desk Lamp,7,285.6
+TXN-00220,2024-02-21,Retail Store,Backpack,2,32.62
+TXN-00221,2024-12-13,Online,Backpack,1,73.61
+TXN-00222,2024-03-28,Marketplace,Backpack,6,105.9
+TXN-00223,2024-11-10,Retail Store,Water Bottle,1,64.44
+TXN-00224,2024-05-08,Marketplace,Headphones,7,589.12
+TXN-00225,2024-09-29,Retail Store,Desk Lamp,6,459.96
+TXN-00226,2024-01-22,Retail Store,Backpack,7,163.59
+TXN-00227,2024-08-15,Marketplace,Desk Lamp,5,229.7
+TXN-00228,2024-11-09,Online,Headphones,6,679.26
+TXN-00229,2024-05-01,Online,Notebook,1,15.44
+TXN-00230,2024-08-17,Marketplace,Notebook,7,581.42
+TXN-00231,2024-03-18,Online,Water Bottle,7,386.33
+TXN-00232,2024-02-27,Marketplace,Water Bottle,7,528.85
+TXN-00233,2024-01-01,Marketplace,Notebook,5,251.4
+TXN-00234,2024-06-28,Marketplace,Water Bottle,4,76.96
+TXN-00235,2024-07-06,Online,Water Bottle,2,139.36
+TXN-00236,2024-01-29,Retail Store,Headphones,2,11.4
+TXN-00237,2024-03-23,Online,Water Bottle,5,521.85
+TXN-00238,2024-08-07,Marketplace,Headphones,6,581.16
+TXN-00239,2024-05-11,Online,Water Bottle,5,239.9
+TXN-00240,2024-03-24,Retail Store,Notebook,3,200.4
+TXN-00241,2024-01-03,Online,Desk Lamp,5,328.3
+TXN-00242,2024-01-14,Online,Desk Lamp,3,352.98
+TXN-00243,2024-08-17,Retail Store,Water Bottle,1,10.03
+TXN-00244,2024-02-11,Online,Desk Lamp,4,156.92
+TXN-00245,2024-10-31,Online,Backpack,7,362.67
+TXN-00246,2024-07-18,Marketplace,Notebook,1,95.55
+TXN-00247,2024-03-31,Online,Backpack,2,177.9
+TXN-00248,2024-08-17,Online,Headphones,1,53.69
+TXN-00249,2024-02-27,Online,Headphones,3,19.02
+TXN-00250,2024-04-26,Marketplace,Water Bottle,2,159.02
+TXN-00251,2024-06-27,Marketplace,Backpack,2,103.56
+TXN-00252,2024-08-19,Retail Store,Headphones,5,92.15
+TXN-00253,2024-02-19,Online,Headphones,6,465.42
+TXN-00254,2024-05-06,Retail Store,Notebook,6,336.96
+TXN-00255,2024-02-03,Marketplace,Desk Lamp,7,281.68
+TXN-00256,2024-02-17,Marketplace,Water Bottle,7,251.65
+TXN-00257,2024-03-21,Marketplace,Headphones,6,389.34
+TXN-00258,2024-04-23,Online,Backpack,6,200.88
+TXN-00259,2024-11-22,Online,Water Bottle,1,50.23
+TXN-00260,2024-05-22,Retail Store,Desk Lamp,7,793.31
+TXN-00261,2024-02-09,Online,Desk Lamp,1,59.94
+TXN-00262,2024-11-24,Online,Desk Lamp,5,170.75
+TXN-00263,2024-07-24,Online,Backpack,7,454.58
+TXN-00264,2024-02-11,Marketplace,Water Bottle,6,662.94
+TXN-00265,2024-01-30,Marketplace,Headphones,6,627.72
+TXN-00266,2024-02-01,Retail Store,Backpack,5,414.4
+TXN-00267,2024-11-23,Retail Store,Backpack,2,216.78
+TXN-00268,2024-07-21,Online,Water Bottle,1,92.01
+TXN-00269,2024-09-01,Retail Store,Water Bottle,5,416.1
+TXN-00270,2024-12-12,Online,Backpack,1,54.23
+TXN-00271,2024-05-24,Online,Headphones,4,88.72
+TXN-00272,2024-11-22,Retail Store,Headphones,6,535.08
+TXN-00273,2024-05-25,Retail Store,Notebook,2,155.88
+TXN-00274,2024-09-09,Retail Store,Water Bottle,2,232.62
+TXN-00275,2024-10-24,Retail Store,Desk Lamp,7,293.37
+TXN-00276,2024-01-25,Online,Water Bottle,6,634.98
+TXN-00277,2024-09-21,Marketplace,Headphones,6,180.78
+TXN-00278,2024-10-17,Online,Backpack,4,455.28
+TXN-00279,2024-12-14,Retail Store,Headphones,7,836.64
+TXN-00280,2024-09-03,Retail Store,Backpack,1,10.42
+TXN-00281,2024-06-24,Marketplace,Headphones,2,84.66
+TXN-00282,2024-02-21,Retail Store,Headphones,4,479.2
+TXN-00283,2024-10-03,Online,Backpack,1,116.36
+TXN-00284,2024-06-16,Retail Store,Backpack,4,328.48
+TXN-00285,2024-10-17,Retail Store,Notebook,4,81.88
+TXN-00286,2024-01-18,Marketplace,Headphones,1,5.76
+TXN-00287,2024-05-04,Retail Store,Notebook,2,67.32
+TXN-00288,2024-10-15,Marketplace,Water Bottle,2,227.22
+TXN-00289,2024-08-07,Retail Store,Backpack,7,682.92
+TXN-00290,2024-09-15,Marketplace,Headphones,3,162.84
+TXN-00291,2024-07-31,Marketplace,Desk Lamp,5,462.7
+TXN-00292,2024-10-16,Marketplace,Notebook,3,326.28
+TXN-00293,2024-10-25,Marketplace,Desk Lamp,3,118.47
+TXN-00294,2024-09-30,Retail Store,Headphones,5,527.8
+TXN-00295,2024-08-26,Marketplace,Water Bottle,6,216.0
+TXN-00296,2024-04-06,Retail Store,Desk Lamp,2,85.6
+TXN-00297,2024-01-28,Retail Store,Desk Lamp,2,20.28
+TXN-00298,2024-10-11,Retail Store,Water Bottle,4,93.68
+TXN-00299,2024-05-06,Retail Store,Headphones,4,273.4
+TXN-00300,2024-03-30,Retail Store,Desk Lamp,5,38.75
