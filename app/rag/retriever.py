@@ -23,6 +23,7 @@ tests/test_rag_retriever.py for retrieval-relevance tests, and
 tests/test_rag_prompt_integration.py for proof the retrieved text actually
 appears in what gets sent to the LLM.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -77,7 +78,7 @@ class RetrievedContext:
         if self.examples:
             lines.append("Similar validated question patterns:")
             for ex in self.examples:
-                lines.append(f"- \"{ex.question_pattern}\" -> {ex.guidance}")
+                lines.append(f'- "{ex.question_pattern}" -> {ex.guidance}')
         return "\n".join(lines)
 
 
@@ -101,11 +102,14 @@ def _direct_glossary_matches(qlower: str) -> list:
     say that aren't necessarily registered as column-matching synonyms
     anywhere -- concept overlap alone would miss them."""
     from app.rag.knowledge_base import BUSINESS_GLOSSARY
+
     norm_q = normalize(qlower)
     return [e for e in BUSINESS_GLOSSARY if normalize(e.term) in norm_q]
 
 
-def retrieve(question: str, schema: dict[str, TableSchema], max_columns: int = 6, max_examples: int = 2) -> RetrievedContext:
+def retrieve(
+    question: str, schema: dict[str, TableSchema], max_columns: int = 6, max_examples: int = 2
+) -> RetrievedContext:
     """The retrieval step. Pure function of (question, schema) -- no
     network access, no LLM call, fully deterministic and unit-testable."""
     qlower = (question or "").strip().lower()

@@ -17,13 +17,14 @@ difference (see app/llm/base.py). The system never claims to have used an
 LLM when running in this mode -- see AnalysisResult.llm_provider, set from
 config, and surfaced in the UI/API/reports.
 """
+
 from __future__ import annotations
 
 import json
 import re
 
-from app.analytics.metrics import compute_metric_alias
 from app.agents.intent_hints import COUNT_HINTS, DESCRIPTIVE_STATS_HINTS, DUPLICATE_HINTS, MISSING_DATA_HINTS
+from app.analytics.metrics import compute_metric_alias
 from app.data.column_matcher import (
     extract_limit,
     find_columns_for_concept,
@@ -34,7 +35,21 @@ from app.data.column_matcher import (
 from app.llm.base import LLMClient
 
 _TIME_HINTS = ["trend", "over time", "monthly", "month", "quarter", "quarterly", "weekly", "daily", "yearly"]
-_RANK_HINTS = ["top", "highest", "lowest", "best", "worst", "rank", "ranking", "maximum", "minimum", "largest", "smallest", "most", "least"]
+_RANK_HINTS = [
+    "top",
+    "highest",
+    "lowest",
+    "best",
+    "worst",
+    "rank",
+    "ranking",
+    "maximum",
+    "minimum",
+    "largest",
+    "smallest",
+    "most",
+    "least",
+]
 _MIN_HINTS = ["lowest", "worst", "bottom", "smallest", "minimum", "least", "declining", "decreasing"]
 _COMPARE_HINTS = ["compare", "versus", "vs", "difference between"]
 _DIST_HINTS = ["distribution", "breakdown", "split", "by category", "segment"]
@@ -68,7 +83,7 @@ def _parse_schema_block(schema_description: str) -> dict[str, dict]:
         if not line:
             continue
         if line.startswith("TABLE "):
-            current_table = line[len("TABLE "):].split(" ")[0].strip(":")
+            current_table = line[len("TABLE ") :].split(" ")[0].strip(":")
             tables[current_table] = {"columns": [], "samples": {}}
         elif line.startswith("- ") and current_table:
             m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*\[(.*)\])?", line)
@@ -76,7 +91,9 @@ def _parse_schema_block(schema_description: str) -> dict[str, dict]:
                 col_name, col_type, values_blob = m.group(1), m.group(2), m.group(3)
                 tables[current_table]["columns"].append((col_name, col_type))
                 if values_blob:
-                    tables[current_table]["samples"][col_name] = [v.strip() for v in values_blob.split(",") if v.strip()]
+                    tables[current_table]["samples"][col_name] = [
+                        v.strip() for v in values_blob.split(",") if v.strip()
+                    ]
     return tables
 
 
@@ -94,8 +111,25 @@ def _extract_filters(qlower: str, samples: dict[str, list[str]]) -> list[dict]:
 
 
 _INTERROGATIVE_STOPWORDS = {
-    "which", "what", "who", "whom", "whose", "show", "list", "compare", "rank",
-    "give", "find", "tell", "how", "are", "is", "the", "total", "average", "display",
+    "which",
+    "what",
+    "who",
+    "whom",
+    "whose",
+    "show",
+    "list",
+    "compare",
+    "rank",
+    "give",
+    "find",
+    "tell",
+    "how",
+    "are",
+    "is",
+    "the",
+    "total",
+    "average",
+    "display",
 }
 
 
@@ -166,19 +200,31 @@ class MockLLMClient(LLMClient):
 
         def base_plan(**overrides) -> dict:
             plan = {
-                "intent": "unsupported", "table": tables and table_name or None,
-                "metric_column": None, "aggregation": None, "dimension_column": None,
-                "date_column": None, "filters": [], "chart_type": "table",
-                "sort_direction": None, "limit": None, "time_granularity": "month",
-                "metric_alias": None, "ambiguous_options": [], "clarification_needed": None,
+                "intent": "unsupported",
+                "table": tables and table_name or None,
+                "metric_column": None,
+                "aggregation": None,
+                "dimension_column": None,
+                "date_column": None,
+                "filters": [],
+                "chart_type": "table",
+                "sort_direction": None,
+                "limit": None,
+                "time_granularity": "month",
+                "metric_alias": None,
+                "ambiguous_options": [],
+                "clarification_needed": None,
             }
             plan.update(overrides)
             return plan
 
         if not tables:
-            return json.dumps(base_plan(
-                table=None, clarification_needed="No dataset has been loaded yet.",
-            ))
+            return json.dumps(
+                base_plan(
+                    table=None,
+                    clarification_needed="No dataset has been loaded yet.",
+                )
+            )
 
         table_name = next(iter(tables))  # single-table CSV workflow: use the loaded table
         columns = tables[table_name]["columns"]
@@ -208,16 +254,18 @@ class MockLLMClient(LLMClient):
             revenue_cols = find_columns_for_concept(columns, "revenue", _is_numeric_type)
             quantity_cols = find_columns_for_concept(columns, "quantity", _is_numeric_type)
             if revenue_cols and quantity_cols:
-                return json.dumps(base_plan(
-                    ambiguous_options=[
-                        f"total revenue ({revenue_cols[0]})",
-                        f"units sold ({quantity_cols[0]})",
-                    ],
-                    clarification_needed=(
-                        "This could mean the highest total revenue or the highest number of units sold. "
-                        f"Do you mean ranking by '{revenue_cols[0]}' or by '{quantity_cols[0]}'?"
-                    ),
-                ))
+                return json.dumps(
+                    base_plan(
+                        ambiguous_options=[
+                            f"total revenue ({revenue_cols[0]})",
+                            f"units sold ({quantity_cols[0]})",
+                        ],
+                        clarification_needed=(
+                            "This could mean the highest total revenue or the highest number of units sold. "
+                            f"Do you mean ranking by '{revenue_cols[0]}' or by '{quantity_cols[0]}'?"
+                        ),
+                    )
+                )
             # only one candidate metric exists, so there's nothing actually ambiguous here
 
         # -- column resolution, synonym-aware -------------------------------
@@ -230,30 +278,37 @@ class MockLLMClient(LLMClient):
             unrecognized = _detect_unrecognized_filter_reference(question, dimension_column, samples)
             if unrecognized:
                 known = ", ".join(samples.get(dimension_column, []))
-                return json.dumps(base_plan(
-                    dimension_column=dimension_column,
-                    clarification_needed=(
-                        f"I don't see '{unrecognized}' as a value in the '{dimension_column}' column, so I "
-                        f"can't filter by it. Known values include: {known}."
-                    ),
-                ))
+                return json.dumps(
+                    base_plan(
+                        dimension_column=dimension_column,
+                        clarification_needed=(
+                            f"I don't see '{unrecognized}' as a value in the '{dimension_column}' column, so I "
+                            f"can't filter by it. Known values include: {known}."
+                        ),
+                    )
+                )
 
         if is_count_question:
             metric_column = "*"
         elif not metric_column:
-            generic_agg_cue = any(w in qlower for w in ["total", "sum", "average", "avg", "mean"]) or rank_hint or anomaly_hint
+            generic_agg_cue = (
+                any(w in qlower for w in ["total", "sum", "average", "avg", "mean"]) or rank_hint or anomaly_hint
+            )
             numeric_cols = [n for n, t in columns if _is_numeric_type(t)]
             if generic_agg_cue and len(numeric_cols) == 1:
                 metric_column = numeric_cols[0]
             else:
-                return json.dumps(base_plan(
-                    dimension_column=dimension_column, date_column=date_column,
-                    clarification_needed=(
-                        f"I can see you're asking about '{table_name}', but I'm not sure which "
-                        f"measurement you'd like -- could you specify one of: "
-                        f"{', '.join(n for n, t in columns if _is_numeric_type(t))}?"
-                    ),
-                ))
+                return json.dumps(
+                    base_plan(
+                        dimension_column=dimension_column,
+                        date_column=date_column,
+                        clarification_needed=(
+                            f"I can see you're asking about '{table_name}', but I'm not sure which "
+                            f"measurement you'd like -- could you specify one of: "
+                            f"{', '.join(n for n, t in columns if _is_numeric_type(t))}?"
+                        ),
+                    )
+                )
 
         # A resolved dimension_column already required either the literal
         # column name or a concept synonym to appear somewhere in the
@@ -315,16 +370,26 @@ class MockLLMClient(LLMClient):
             sort_direction = "desc"
 
         chart_type = (
-            "line" if intent in ("trend", "trend_by_dimension", "percentage_change")
-            else "bar" if intent in ("ranking", "grouped_comparison") else "table"
+            "line"
+            if intent in ("trend", "trend_by_dimension", "percentage_change")
+            else "bar"
+            if intent in ("ranking", "grouped_comparison")
+            else "table"
         )
         metric_alias = compute_metric_alias(aggregation, metric_column)
 
         plan = base_plan(
-            intent=intent, metric_column=metric_column, aggregation=aggregation,
-            dimension_column=dimension_column, date_column=date_column, filters=filters,
-            chart_type=chart_type, sort_direction=sort_direction, sort_desc=(sort_direction == "desc"),
-            limit=limit, metric_alias=metric_alias,
+            intent=intent,
+            metric_column=metric_column,
+            aggregation=aggregation,
+            dimension_column=dimension_column,
+            date_column=date_column,
+            filters=filters,
+            chart_type=chart_type,
+            sort_direction=sort_direction,
+            sort_desc=(sort_direction == "desc"),
+            limit=limit,
+            metric_alias=metric_alias,
         )
         return json.dumps(plan)
 
@@ -346,6 +411,7 @@ class MockLLMClient(LLMClient):
     @staticmethod
     def _concept_hinted_in_question(concept: str, qlower: str) -> bool:
         from app.data.column_matcher import CONCEPT_SYNONYMS, normalize
+
         norm_q = normalize(qlower)
         return any(syn in qlower or normalize(syn) in norm_q for syn in CONCEPT_SYNONYMS.get(concept, [concept]))
 
@@ -372,7 +438,12 @@ class MockLLMClient(LLMClient):
         plan_match = re.search(r"PLAN:\n([\s\S]*?)\nSCHEMA:", user_prompt)
         plan = json.loads(plan_match.group(1)) if plan_match else {}
 
-        if plan.get("intent") in ("unsupported", "missing_data", "duplicate_analysis", "descriptive_stats") or not plan.get("table"):
+        if plan.get("intent") in (
+            "unsupported",
+            "missing_data",
+            "duplicate_analysis",
+            "descriptive_stats",
+        ) or not plan.get("table"):
             return "SELECT 1 WHERE 1=0"
 
         table = plan["table"]
@@ -425,8 +496,19 @@ class MockLLMClient(LLMClient):
 
         parts = []
         for key, val in metrics.items():
-            if key in ("row_count", "column_count", "total", "average", "min", "max",
-                       "top_entry", "top_value", "trend_direction", "period_over_period_change_pct", "no_data"):
+            if key in (
+                "row_count",
+                "column_count",
+                "total",
+                "average",
+                "min",
+                "max",
+                "top_entry",
+                "top_value",
+                "trend_direction",
+                "period_over_period_change_pct",
+                "no_data",
+            ):
                 continue
             if val is None:
                 continue
@@ -450,5 +532,5 @@ def _build_where_clause(filters: list[dict]) -> str:
         if not column or value is None:
             continue
         escaped_value = str(value).replace("'", "''")
-        clauses.append(f'"{column}" = \'{escaped_value}\'')
+        clauses.append(f"\"{column}\" = '{escaped_value}'")
     return f" WHERE {' AND '.join(clauses)}" if clauses else ""

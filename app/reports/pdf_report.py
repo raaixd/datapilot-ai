@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -19,7 +19,7 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
     styles = getSampleStyleSheet()
     story = [
         Paragraph("DataPilot AI &mdash; Analysis Report", styles["Title"]),
-        Paragraph(datetime.now(timezone.utc).strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
+        Paragraph(datetime.now(UTC).strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
         Spacer(1, 0.2 * inch),
         Paragraph("Question", styles["Heading2"]),
         Paragraph(_escape(result.question), styles["Normal"]),
@@ -38,9 +38,7 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
 
     if result.metrics:
         story.append(Paragraph("Key Metrics", styles["Heading2"]))
-        metric_rows = [["Metric", "Value"]] + [
-            [k.replace("_", " ").title(), str(v)] for k, v in result.metrics.items()
-        ]
+        metric_rows = [["Metric", "Value"]] + [[k.replace("_", " ").title(), str(v)] for k, v in result.metrics.items()]
         story.append(_styled_table(metric_rows))
         story.append(Spacer(1, 0.15 * inch))
 
@@ -67,13 +65,15 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
 def _styled_table(rows: list[list[str]]) -> Table:
     table = Table(rows, hAlign="LEFT")
     table.setStyle(
-        TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2933")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f2f5")]),
-        ])
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2933")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f0f2f5")]),
+            ]
+        )
     )
     return table
 

@@ -9,6 +9,7 @@ sanitization actually holds against injection attempts in a table name
 derived from user input (e.g. an uploaded filename), rather than just
 assuming it because the code "looks" safe.
 """
+
 import unittest
 
 import pandas as pd

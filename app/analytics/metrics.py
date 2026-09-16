@@ -15,6 +15,7 @@ the same (aggregation, metric_column) pair the SQL generator used -- so the
 column name the query actually returns and the column name this module
 looks for can never drift apart.
 """
+
 from __future__ import annotations
 
 import math
@@ -129,7 +130,9 @@ def _per_dimension_trend(result: pd.DataFrame, dimension_column: str, period_col
         if len(series) < 2:
             continue
         direction = _trend_direction(series)
-        (declining if direction == "decreasing" else increasing if direction == "increasing" else flat).append(str(dim_value))
+        (declining if direction == "decreasing" else increasing if direction == "increasing" else flat).append(
+            str(dim_value)
+        )
 
     return {
         "declining_entities": declining,

@@ -9,6 +9,7 @@ relying on it. The application, tests, and evaluation harness all default
 to MockLLMClient (LLM_PROVIDER=mock) specifically so they don't need this
 file to work.
 """
+
 from __future__ import annotations
 
 from app.llm.base import LLMClient
@@ -48,13 +49,16 @@ class OllamaLLMClient(LLMClient):
         import json
         import urllib.request
 
-        payload = json.dumps({
-            "model": self._model,
-            "prompt": f"{system_prompt}\n\n{user_prompt}",
-            "stream": False,
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": self._model,
+                "prompt": f"{system_prompt}\n\n{user_prompt}",
+                "stream": False,
+            }
+        ).encode()
         req = urllib.request.Request(
-            f"{self._base_url}/api/generate", data=payload,
+            f"{self._base_url}/api/generate",
+            data=payload,
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=60) as resp:

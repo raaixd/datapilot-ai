@@ -11,7 +11,7 @@ def _success_result():
     return AnalysisResult(
         question="What is total revenue by region?",
         success=True,
-        sql='SELECT region, SUM(revenue) AS value FROM sales GROUP BY region LIMIT 1000',
+        sql="SELECT region, SUM(revenue) AS value FROM sales GROUP BY region LIMIT 1000",
         result_preview=[{"region": "North", "value": 400.0}, {"region": "South", "value": 650.0}],
         metrics={"total": 1050.0, "top_entry": "South", "top_value": 650.0},
         insight="Total revenue across regions is 1050.0, led by South at 650.0.",

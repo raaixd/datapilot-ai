@@ -14,7 +14,7 @@ SCHEMA = {
 
 class TestSQLValidator(unittest.TestCase):
     def test_valid_select_passes(self):
-        result = validate_sql('SELECT region, SUM(revenue) AS value FROM sales GROUP BY region', SCHEMA)
+        result = validate_sql("SELECT region, SUM(revenue) AS value FROM sales GROUP BY region", SCHEMA)
         self.assertTrue(result.is_valid)
         self.assertIn("LIMIT", result.safe_sql)
 
@@ -55,9 +55,7 @@ class TestSQLValidator(unittest.TestCase):
         self.assertFalse(result.is_valid)
 
     def test_rejects_union_injection(self):
-        result = validate_sql(
-            "SELECT region FROM sales UNION SELECT name FROM sqlite_master", SCHEMA
-        )
+        result = validate_sql("SELECT region FROM sales UNION SELECT name FROM sqlite_master", SCHEMA)
         self.assertFalse(result.is_valid)
 
     def test_rejects_unknown_table(self):
@@ -88,25 +86,20 @@ class TestSQLValidator(unittest.TestCase):
         self.assertTrue(result.is_valid)
 
     def test_with_cte_select_allowed(self):
-        result = validate_sql(
-            "WITH t AS (SELECT region, revenue FROM sales) SELECT region FROM t", SCHEMA
-        )
+        result = validate_sql("WITH t AS (SELECT region, revenue FROM sales) SELECT region FROM t", SCHEMA)
         # Fixed in round 2: CTE names are now recognized as valid references,
         # while the base table used *inside* the CTE body is still validated
         # against the real schema (see test_cte_with_unknown_base_table_rejected).
         self.assertTrue(result.is_valid, result.errors)
 
     def test_cte_with_unknown_base_table_rejected(self):
-        result = validate_sql(
-            "WITH t AS (SELECT region, revenue FROM customers) SELECT region FROM t", SCHEMA
-        )
+        result = validate_sql("WITH t AS (SELECT region, revenue FROM customers) SELECT region FROM t", SCHEMA)
         self.assertFalse(result.is_valid)
         self.assertTrue(any("unknown table" in e.lower() for e in result.errors))
 
     def test_multiple_ctes_allowed(self):
         result = validate_sql(
-            "WITH a AS (SELECT region FROM sales), b AS (SELECT revenue FROM sales) "
-            "SELECT * FROM a, b",
+            "WITH a AS (SELECT region FROM sales), b AS (SELECT revenue FROM sales) SELECT * FROM a, b",
             SCHEMA,
         )
         self.assertTrue(result.is_valid, result.errors)

@@ -54,6 +54,7 @@ it had schema overlap, so it's a "needs more specifics" situation, not an
 "unrelated question" situation. That distinction is what this module's
 categories are for.
 """
+
 from __future__ import annotations
 
 import re
@@ -72,8 +73,13 @@ from app.data.database import TableSchema
 # only the benign remainder of the sentence with no acknowledgement at all
 # that part of the request was refused.
 _UNSAFE_MUTATION_PATTERNS = [
-    re.compile(r"\b(delete|drop|remove|truncate|purge)\b.{0,25}\b(table|row|record|data|database|column)s?\b", re.IGNORECASE),
-    re.compile(r"\b(update|modify|change|edit|overwrite|alter)\b.{0,25}\b(table|row|record|data|database|column|value)s?\b", re.IGNORECASE),
+    re.compile(
+        r"\b(delete|drop|remove|truncate|purge)\b.{0,25}\b(table|row|record|data|database|column)s?\b", re.IGNORECASE
+    ),
+    re.compile(
+        r"\b(update|modify|change|edit|overwrite|alter)\b.{0,25}\b(table|row|record|data|database|column|value)s?\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(insert|add)\b.{0,25}\b(row|record)s?\b|\binsert\b.{0,15}\binto\s+the\s+table\b", re.IGNORECASE),
     re.compile(r"\bdrop\s+table\b", re.IGNORECASE),
 ]
@@ -138,7 +144,7 @@ def _schema_concepts_and_columns(schema: dict[str, TableSchema]) -> tuple[set[st
         relevant_words.add(name.lower())
         relevant_words.add(normalize(name))
 
-    for concept, synonyms in CONCEPT_SYNONYMS.items():
+    for _concept, synonyms in CONCEPT_SYNONYMS.items():
         if any(normalize(s) in normalize(name) for s in synonyms for name, _ in all_columns):
             relevant_words.update(normalize(s) for s in synonyms)
 
@@ -159,8 +165,20 @@ def _has_schema_overlap(qlower: str, schema: dict[str, TableSchema]) -> bool:
 # question still deserves the softer "ambiguous" framing (e.g. it clearly
 # wants *some* analysis, just doesn't say what) vs. flatly "out_of_scope".
 _ANALYTICAL_VERBS = [
-    "total", "average", "sum", "count", "compare", "trend", "rank", "top",
-    "highest", "lowest", "distribution", "breakdown", "how many", "group by",
+    "total",
+    "average",
+    "sum",
+    "count",
+    "compare",
+    "trend",
+    "rank",
+    "top",
+    "highest",
+    "lowest",
+    "distribution",
+    "breakdown",
+    "how many",
+    "group by",
 ]
 
 
@@ -168,13 +186,19 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
     qlower = (question or "").strip().lower()
 
     if not qlower:
-        return ScopeResult(scope="out_of_scope", confidence=1.0, reason="empty question",
-                            user_facing_message="I didn't receive a question -- what would you like to know about the data?")
+        return ScopeResult(
+            scope="out_of_scope",
+            confidence=1.0,
+            reason="empty question",
+            user_facing_message="I didn't receive a question -- what would you like to know about the data?",
+        )
 
     for pattern in _UNSAFE_MUTATION_PATTERNS + _UNSAFE_INJECTION_PATTERNS:
         if pattern.search(qlower):
             return ScopeResult(
-                scope="unsafe", confidence=0.95, reason=f"matched unsafe pattern: {pattern.pattern}",
+                scope="unsafe",
+                confidence=0.95,
+                reason=f"matched unsafe pattern: {pattern.pattern}",
                 user_facing_message=(
                     "I can only run read-only analysis on your data -- I can't modify, delete, or "
                     "restructure it, and I won't follow instructions embedded in a question that try "
@@ -186,7 +210,9 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
         if pattern.search(qlower):
             options = _clarification_options(schema)
             return ScopeResult(
-                scope="ambiguous", confidence=0.8, reason=f"matched vague-phrasing pattern: {pattern.pattern}",
+                scope="ambiguous",
+                confidence=0.8,
+                reason=f"matched vague-phrasing pattern: {pattern.pattern}",
                 user_facing_message=_ambiguous_message(options),
                 clarification_options=options,
             )
@@ -196,7 +222,9 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
     # specific column by design, so the schema-overlap check below would
     # wrongly reject them otherwise.
     if is_dataset_level_question(qlower):
-        return ScopeResult(scope="in_scope", confidence=0.9, reason="dataset-level question (missing/duplicate/describe)")
+        return ScopeResult(
+            scope="in_scope", confidence=0.9, reason="dataset-level question (missing/duplicate/describe)"
+        )
 
     if is_row_count_question(qlower):
         return ScopeResult(scope="in_scope", confidence=0.85, reason="row-count question (resolves to COUNT(*))")
@@ -208,7 +236,9 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
     if not has_overlap:
         if action_match:
             return ScopeResult(
-                scope="out_of_scope", confidence=0.85, reason=f"unsupported action, no schema overlap: {action_match.pattern}",
+                scope="out_of_scope",
+                confidence=0.85,
+                reason=f"unsupported action, no schema overlap: {action_match.pattern}",
                 user_facing_message=(
                     "I can calculate and display analysis results here, but I can't email, export, "
                     "schedule, or connect to external systems. Ask me a question about the data and "
@@ -221,13 +251,16 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
             # dataset -- softer framing than a flat "unrelated question".
             options = _clarification_options(schema)
             return ScopeResult(
-                scope="ambiguous", confidence=0.6,
+                scope="ambiguous",
+                confidence=0.6,
                 reason="analytical vocabulary present but no schema overlap",
                 user_facing_message=_ambiguous_message(options, generic=True),
                 clarification_options=options,
             )
         return ScopeResult(
-            scope="out_of_scope", confidence=0.9, reason="no schema overlap, no analytical vocabulary",
+            scope="out_of_scope",
+            confidence=0.9,
+            reason="no schema overlap, no analytical vocabulary",
             user_facing_message=_out_of_scope_message(schema),
         )
 
@@ -237,7 +270,9 @@ def classify_scope(question: str, schema: dict[str, TableSchema]) -> ScopeResult
         )
 
     return ScopeResult(
-        scope="in_scope", confidence=0.7, reason="schema overlap found",
+        scope="in_scope",
+        confidence=0.7,
+        reason="schema overlap found",
         unsupported_action_note=unsupported_action_note,
     )
 
@@ -272,7 +307,8 @@ def _out_of_scope_message(schema: dict[str, TableSchema]) -> str:
         break
     example_text = (
         f"For example, you could ask about {', '.join(examples)}."
-        if examples else "For example, you could ask about totals, comparisons, or trends in your data."
+        if examples
+        else "For example, you could ask about totals, comparisons, or trends in your data."
     )
     return (
         "This question is outside the scope of the uploaded dataset. I can help analyze the data -- "

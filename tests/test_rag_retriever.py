@@ -7,20 +7,32 @@ are actually relevant, and leave out ones that aren't? See
 tests/test_rag_prompt_integration.py for proof the retrieved text actually
 reaches the LLM prompt (a different, equally important thing to verify).
 """
+
 import unittest
 
 import pandas as pd
 
 from app.data.database import AnalyticalDatabase
-from app.rag.knowledge_base import BUSINESS_GLOSSARY, VALIDATED_EXAMPLES, examples_for_intent, glossary_entries_for_concepts
+from app.rag.knowledge_base import (
+    BUSINESS_GLOSSARY,
+    VALIDATED_EXAMPLES,
+    examples_for_intent,
+    glossary_entries_for_concepts,
+)
 from app.rag.retriever import retrieve
 
 
 def _sales_schema():
-    df = pd.DataFrame({
-        "order_date": ["2024-01-01"], "region": ["North"], "product_category": ["Electronics"],
-        "quantity": [1], "unit_price": [10.0], "revenue": [10.0],
-    })
+    df = pd.DataFrame(
+        {
+            "order_date": ["2024-01-01"],
+            "region": ["North"],
+            "product_category": ["Electronics"],
+            "quantity": [1],
+            "unit_price": [10.0],
+            "revenue": [10.0],
+        }
+    )
     db = AnalyticalDatabase(backend="sqlite", path=":memory:")
     db.load_dataframe(df, "sales")
     return db.describe_schema()
@@ -103,6 +115,7 @@ class TestRetrievedContextFormatting(unittest.TestCase):
 
     def test_empty_context_produces_empty_prompt_text(self):
         from app.rag.retriever import RetrievedContext
+
         self.assertEqual(RetrievedContext().to_prompt_text(), "")
 
 

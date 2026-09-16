@@ -8,6 +8,7 @@ handful of additional cases exercising the plural-form regex fix and the
 dataset-level / row-count carve-outs found while wiring this into the
 orchestrator (see CHANGELOG.md).
 """
+
 import unittest
 
 import pandas as pd
@@ -17,10 +18,16 @@ from app.data.database import AnalyticalDatabase
 
 
 def _sales_schema():
-    df = pd.DataFrame({
-        "order_date": ["2024-01-01"], "region": ["North"], "product_category": ["Electronics"],
-        "quantity": [1], "unit_price": [10.0], "revenue": [10.0],
-    })
+    df = pd.DataFrame(
+        {
+            "order_date": ["2024-01-01"],
+            "region": ["North"],
+            "product_category": ["Electronics"],
+            "quantity": [1],
+            "unit_price": [10.0],
+            "revenue": [10.0],
+        }
+    )
     db = AnalyticalDatabase(backend="sqlite", path=":memory:")
     db.load_dataframe(df, "sample_sales")
     return db.describe_schema()
@@ -109,7 +116,12 @@ class TestOutOfScope(unittest.TestCase):
     def test_out_of_scope_message_never_mentions_columns_as_an_error(self):
         result = classify_scope("What is the meaning of life?", self.schema)
         self.assertNotIn("Could not map", result.user_facing_message)
-        self.assertNotIn("column", result.user_facing_message.lower().split("could help")[0] if "could help" in result.user_facing_message.lower() else result.user_facing_message)
+        self.assertNotIn(
+            "column",
+            result.user_facing_message.lower().split("could help")[0]
+            if "could help" in result.user_facing_message.lower()
+            else result.user_facing_message,
+        )
 
     def test_out_of_scope_message_is_friendly_and_suggests_alternatives(self):
         result = classify_scope("What is the meaning of life?", self.schema)
@@ -165,6 +177,7 @@ class TestUnsafe(unittest.TestCase):
 class TestScopeResultValidation(unittest.TestCase):
     def test_invalid_scope_value_rejected(self):
         from app.agents.scope_classifier import ScopeResult
+
         with self.assertRaises(ValueError):
             ScopeResult(scope="not_a_real_scope", confidence=1.0, reason="test")
 

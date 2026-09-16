@@ -9,6 +9,7 @@ which is NOT installed here -- that specific branch is exercised only via
 test_xls_missing_dependency_raises_helpful_error, which confirms the
 missing-dependency error path (not the happy path) actually works.
 """
+
 import io
 import os
 import tempfile
@@ -83,7 +84,7 @@ class TestLoader(unittest.TestCase):
         self.assertEqual(df.iloc[0]["region"], "Caf\xe9 Region")
 
     def test_plain_utf8_csv_unaffected_by_fallback_logic(self):
-        buf = io.BytesIO("region,revenue\nNorth,100\n".encode("utf-8"))
+        buf = io.BytesIO(b"region,revenue\nNorth,100\n")
         df = load_tabular_file(buf, "data.csv")
         self.assertEqual(df.iloc[0]["region"], "North")
 

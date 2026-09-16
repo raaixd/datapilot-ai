@@ -30,6 +30,7 @@ store), at the cost of not proactively cleaning up temp files between
 requests -- for high-traffic or long-running deployments, a proper
 background sweep would be worth adding (see README "Known limitations").
 """
+
 from __future__ import annotations
 
 import logging
@@ -81,7 +82,9 @@ class SessionManager:
         self.prune_expired()
         session_id = str(uuid.uuid4())
         db = AnalyticalDatabase.create_session_database(backend=self._settings.database_backend)
-        orchestrator = Orchestrator(db, self._llm, max_result_rows=self._settings.max_result_rows, settings=self._settings)
+        orchestrator = Orchestrator(
+            db, self._llm, max_result_rows=self._settings.max_result_rows, settings=self._settings
+        )
         state = SessionState(session_id=session_id, db=db, orchestrator=orchestrator)
         with self._lock:
             self._sessions[session_id] = state

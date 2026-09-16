@@ -20,6 +20,7 @@ Each prompt embeds a `TASK:` marker consumed by the mock client
 (app/llm/mock_client.py) so it can behave differently for each call
 without any special-casing in the orchestrator.
 """
+
 from __future__ import annotations
 
 PLANNER_SYSTEM_PROMPT = """You are a business analytics planner. Given a user's

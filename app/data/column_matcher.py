@@ -10,6 +10,7 @@ This is used by app/llm/mock_client.py (and is the module a real LLM
 integration should also reference, so schema-matching behavior doesn't
 drift between the deterministic mock and a live model).
 """
+
 from __future__ import annotations
 
 import re
@@ -18,8 +19,20 @@ import re
 # Order within each list does not imply priority; priority across concepts
 # is handled by the caller (metric concepts are tried in a fixed order).
 CONCEPT_SYNONYMS: dict[str, list[str]] = {
-    "revenue": ["revenue", "sales_amount", "sales amount", "total_sales", "total sales",
-                "sales", "amount", "order_value", "order value", "net_sales", "money", "earnings"],
+    "revenue": [
+        "revenue",
+        "sales_amount",
+        "sales amount",
+        "total_sales",
+        "total sales",
+        "sales",
+        "amount",
+        "order_value",
+        "order value",
+        "net_sales",
+        "money",
+        "earnings",
+    ],
     "quantity": ["quantity", "units_sold", "units sold", "units", "qty", "item_count", "item count"],
     "price": ["unit_price", "unit price", "price", "cost"],
     "profit": ["profit", "margin"],
@@ -27,8 +40,16 @@ CONCEPT_SYNONYMS: dict[str, list[str]] = {
     "region": ["region", "territory", "area", "market"],
     "category": ["category", "product_category", "product category", "segment", "department"],
     "channel": ["channel", "sales_channel", "sales channel", "source"],
-    "date": ["order_date", "order date", "transaction_date", "transaction date",
-             "purchase_date", "purchase date", "date", "timestamp"],
+    "date": [
+        "order_date",
+        "order date",
+        "transaction_date",
+        "transaction date",
+        "purchase_date",
+        "purchase date",
+        "date",
+        "timestamp",
+    ],
     "customer": ["customer_id", "customer id", "customer", "client_id", "client"],
 }
 
@@ -79,9 +100,7 @@ def column_matches_concept(column_name: str, concept: str) -> bool:
     return any(normalize(s) in norm_col for s in synonyms)
 
 
-def find_columns_for_concept(
-    columns: list[tuple[str, str]], concept: str, type_filter=None
-) -> list[str]:
+def find_columns_for_concept(columns: list[tuple[str, str]], concept: str, type_filter=None) -> list[str]:
     """Return every column (in schema order) that plausibly represents a
     concept, optionally restricted by a type predicate (e.g. numeric-only).
     Returning *all* matches (not just the first) is what lets the caller
@@ -97,8 +116,19 @@ def find_columns_for_concept(
 
 # Small English number-word map, enough for "top five products" / "first ten".
 _NUMBER_WORDS = {
-    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
-    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "fifteen": 15,
     "twenty": 20,
 }
 
@@ -111,9 +141,7 @@ def extract_limit(text_lower: str) -> int | None:
     if digit_match:
         return int(digit_match.group(1))
 
-    word_match = re.search(
-        r"\b(?:top|first|last)\s+(" + "|".join(_NUMBER_WORDS) + r")\b", text_lower
-    )
+    word_match = re.search(r"\b(?:top|first|last)\s+(" + "|".join(_NUMBER_WORDS) + r")\b", text_lower)
     if word_match:
         return _NUMBER_WORDS[word_match.group(1)]
 

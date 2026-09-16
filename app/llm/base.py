@@ -6,6 +6,7 @@ method. The rest of the application only ever talks to `LLMClient`, so the
 provider can be swapped by changing `LLM_PROVIDER` in the environment
 (see app/llm/factory.py) without touching agents/orchestrator code.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

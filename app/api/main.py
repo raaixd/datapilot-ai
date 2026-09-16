@@ -24,6 +24,7 @@ global dataset shared by every client -- see
 app/api/session_manager.py's module docstring for the full writeup of
 what was wrong and why this fixes it.
 """
+
 from __future__ import annotations
 
 import io
@@ -46,7 +47,7 @@ app = FastAPI(
     title="DataPilot AI",
     version="0.3.0",
     description="Natural-language business analytics over an uploaded CSV/Excel file. "
-                 "Each client gets an isolated session -- see /upload. Check /health for current configuration.",
+    "Each client gets an isolated session -- see /upload. Check /health for current configuration.",
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -54,11 +55,12 @@ _settings = get_settings()
 
 try:
     from app.llm.factory import build_llm_client
+
     _llm = build_llm_client(_settings)
 except Exception:
     logger.exception(
-        "Failed to construct the LLM client for LLM_PROVIDER=%s. Check your .env "
-        "(see .env.example) before retrying.", _settings.llm_provider,
+        "Failed to construct the LLM client for LLM_PROVIDER=%s. Check your .env (see .env.example) before retrying.",
+        _settings.llm_provider,
     )
     raise
 
@@ -67,7 +69,7 @@ _profiler = DataProfiler()
 
 
 @app.post("/upload", response_model=UploadResponse)
-async def upload_dataset(file: UploadFile = File(...), session_id: str | None = Form(default=None)):
+async def upload_dataset(file: UploadFile = File(...), session_id: str | None = Form(default=None)):  # noqa: B008
     """Upload a .csv, .xlsx, or .xls file. If `session_id` is omitted, a new
     isolated session is created and returned -- pass it back on subsequent
     /query calls. If `session_id` is provided and still active, the new
@@ -80,7 +82,7 @@ async def upload_dataset(file: UploadFile = File(...), session_id: str | None = 
         raise HTTPException(
             status_code=413,
             detail=f"File is {size_mb:.1f} MB, which exceeds the {_settings.max_upload_mb} MB limit "
-                    f"(set via MAX_UPLOAD_MB).",
+            f"(set via MAX_UPLOAD_MB).",
         )
 
     try:
@@ -104,7 +106,13 @@ async def upload_dataset(file: UploadFile = File(...), session_id: str | None = 
     table_name = (file.filename or "dataset").rsplit(".", 1)[0]
     state.db.drop_all_tables()  # one active dataset per session -- see README "Known limitations"
     schema = state.db.load_dataframe(df, table_name)
-    logger.info("Session %s: loaded '%s' (%d rows) as table '%s'", state.session_id, file.filename, schema.row_count, schema.name)
+    logger.info(
+        "Session %s: loaded '%s' (%d rows) as table '%s'",
+        state.session_id,
+        file.filename,
+        schema.row_count,
+        schema.name,
+    )
 
     return UploadResponse(
         session_id=state.session_id,
@@ -123,7 +131,9 @@ async def run_query(request: QueryRequest):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     if not state.db.list_tables():
-        raise HTTPException(status_code=400, detail="No dataset loaded in this session yet. POST a file to /upload first.")
+        raise HTTPException(
+            status_code=400, detail="No dataset loaded in this session yet. POST a file to /upload first."
+        )
 
     result = state.orchestrator.analyze(request.question, data_profile=state.profile)
     return QueryResponse(

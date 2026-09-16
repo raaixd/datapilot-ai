@@ -9,9 +9,17 @@ from app.llm.prompts import PLANNER_SYSTEM_PROMPT, build_planner_user_prompt
 from app.rag.retriever import retrieve
 
 VALID_INTENTS = {
-    "aggregation", "ranking", "grouped_comparison", "trend", "trend_by_dimension",
-    "percentage_change", "descriptive_stats", "missing_data", "duplicate_analysis",
-    "anomaly_detection", "unsupported",
+    "aggregation",
+    "ranking",
+    "grouped_comparison",
+    "trend",
+    "trend_by_dimension",
+    "percentage_change",
+    "descriptive_stats",
+    "missing_data",
+    "duplicate_analysis",
+    "anomaly_detection",
+    "unsupported",
 }
 VALID_AGGREGATIONS = {"sum", "avg", "min", "max", "count", None}
 VALID_SORT_DIRECTIONS = {"asc", "desc", None}
@@ -39,14 +47,14 @@ class AnalysisPlan:
     filters: list[dict]
     chart_type: str
     clarification_needed: str | None
-    sort_desc: bool = True                 # retained for backward compatibility; prefer sort_direction
-    sort_direction: str | None = None       # "asc" | "desc"
+    sort_desc: bool = True  # retained for backward compatibility; prefer sort_direction
+    sort_direction: str | None = None  # "asc" | "desc"
     limit: int | None = None
     time_granularity: str = "month"
     metric_alias: str | None = None
     ambiguous_options: list[str] = field(default_factory=list)
     question: str = ""  # the original question this plan was built for (provenance, and used by
-                         # SQLGenerator to re-run retrieval for the SQL-generation prompt)
+    # SQLGenerator to re-run retrieval for the SQL-generation prompt)
 
     @property
     def is_answerable(self) -> bool:
@@ -66,7 +74,9 @@ class AnalysisPlan:
         if self.intent not in VALID_INTENTS:
             errors.append(f"intent '{self.intent}' is not one of {sorted(VALID_INTENTS)}")
         if self.aggregation not in VALID_AGGREGATIONS:
-            errors.append(f"aggregation '{self.aggregation}' is not one of {sorted(a for a in VALID_AGGREGATIONS if a)}")
+            errors.append(
+                f"aggregation '{self.aggregation}' is not one of {sorted(a for a in VALID_AGGREGATIONS if a)}"
+            )
         if self.sort_direction not in VALID_SORT_DIRECTIONS:
             errors.append(f"sort_direction '{self.sort_direction}' must be 'asc', 'desc', or null")
         if self.chart_type not in VALID_CHART_TYPES:
@@ -108,8 +118,14 @@ class AnalysisPlanner:
             data = json.loads(_strip_code_fence(raw))
         except (json.JSONDecodeError, TypeError):
             return AnalysisPlan(
-                intent="unsupported", table=None, metric_column=None, aggregation=None,
-                dimension_column=None, date_column=None, filters=[], chart_type="table",
+                intent="unsupported",
+                table=None,
+                metric_column=None,
+                aggregation=None,
+                dimension_column=None,
+                date_column=None,
+                filters=[],
+                chart_type="table",
                 clarification_needed="The planning step returned a response that could not be parsed as JSON.",
                 question=question,
             )
@@ -137,8 +153,13 @@ class AnalysisPlanner:
             plan.validate()
         except PlanValidationError as exc:
             return AnalysisPlan(
-                intent="unsupported", table=plan.table, metric_column=None, aggregation=None,
-                dimension_column=plan.dimension_column, date_column=plan.date_column, filters=[],
+                intent="unsupported",
+                table=plan.table,
+                metric_column=None,
+                aggregation=None,
+                dimension_column=plan.dimension_column,
+                date_column=plan.date_column,
+                filters=[],
                 chart_type="table",
                 clarification_needed=f"The analysis plan failed validation and was discarded: {exc}",
                 question=question,

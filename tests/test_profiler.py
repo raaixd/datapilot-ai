@@ -72,7 +72,9 @@ class TestDataProfiler(unittest.TestCase):
     def test_negative_value_warning_fires_when_negatives_present(self):
         df = pd.DataFrame({"sales_amount": [10.0, -5.0, 30.0]})
         profile = self.profiler.profile(df)
-        neg_warnings = [w for w in profile.warnings if w.issue == "invalid_numeric_values" and w.column == "sales_amount"]
+        neg_warnings = [
+            w for w in profile.warnings if w.issue == "invalid_numeric_values" and w.column == "sales_amount"
+        ]
         self.assertEqual(len(neg_warnings), 1)
         self.assertEqual(neg_warnings[0].affected_rows, 1)
 

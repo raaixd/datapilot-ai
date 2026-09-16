@@ -81,11 +81,13 @@ class TestMetrics(unittest.TestCase):
         self.assertNotIn("total", metrics)
 
     def test_per_dimension_trend_detects_decline(self):
-        df = pd.DataFrame({
-            "product": ["Widget", "Widget", "Widget", "Gadget", "Gadget", "Gadget"],
-            "period": ["2024-01", "2024-02", "2024-03", "2024-01", "2024-02", "2024-03"],
-            "total_revenue": [100.0, 80.0, 50.0, 100.0, 120.0, 150.0],
-        })
+        df = pd.DataFrame(
+            {
+                "product": ["Widget", "Widget", "Widget", "Gadget", "Gadget", "Gadget"],
+                "period": ["2024-01", "2024-02", "2024-03", "2024-01", "2024-02", "2024-03"],
+                "total_revenue": [100.0, 80.0, 50.0, 100.0, 120.0, 150.0],
+            }
+        )
         metrics = compute_result_metrics(df, metric_alias="total_revenue", dimension_column="product")
         self.assertIn("Widget", metrics["declining_entities"])
         self.assertIn("Gadget", metrics["increasing_entities"])

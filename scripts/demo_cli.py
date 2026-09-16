@@ -9,6 +9,7 @@ Usage:
     PYTHONPATH=. python3 scripts/demo_cli.py "What is the total revenue by region?"
     PYTHONPATH=. python3 scripts/demo_cli.py --file path/to/other.xlsx "How many orders are there?"
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,8 +30,13 @@ def main() -> int:
     configure_logging()
     parser = argparse.ArgumentParser(description="DataPilot AI command-line demo")
     parser.add_argument("question", help="Business question to ask")
-    parser.add_argument("--file", "--csv", dest="file", default="data/sample_sales.csv",
-                         help="Path to a .csv, .xlsx, or .xls file (default: bundled sample dataset)")
+    parser.add_argument(
+        "--file",
+        "--csv",
+        dest="file",
+        default="data/sample_sales.csv",
+        help="Path to a .csv, .xlsx, or .xls file (default: bundled sample dataset)",
+    )
     parser.add_argument("--report", metavar="PATH", help="Write a Markdown report to this path")
     args = parser.parse_args()
 
@@ -55,7 +61,9 @@ def main() -> int:
     table_name = args.file.rsplit("/", 1)[-1].rsplit(".", 1)[0]
     db.load_dataframe(df, table_name)
 
-    orchestrator = Orchestrator(db, build_llm_client(settings), max_result_rows=settings.max_result_rows, settings=settings)
+    orchestrator = Orchestrator(
+        db, build_llm_client(settings), max_result_rows=settings.max_result_rows, settings=settings
+    )
     result = orchestrator.analyze(args.question, data_profile=profile)
 
     print(f"Q: {result.question}")

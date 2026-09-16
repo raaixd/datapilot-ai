@@ -5,8 +5,14 @@ from app.agents.planner import AnalysisPlan, PlanValidationError
 
 def _base_kwargs(**overrides):
     kwargs = dict(
-        intent="aggregation", table="sales", metric_column="revenue", aggregation="sum",
-        dimension_column=None, date_column=None, filters=[], chart_type="table",
+        intent="aggregation",
+        table="sales",
+        metric_column="revenue",
+        aggregation="sum",
+        dimension_column=None,
+        date_column=None,
+        filters=[],
+        chart_type="table",
         clarification_needed=None,
     )
     kwargs.update(overrides)

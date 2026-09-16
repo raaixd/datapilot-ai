@@ -16,6 +16,7 @@ Run it with:
 
 Exit code is 1 if any case fails, 0 otherwise -- so it can be wired into CI.
 """
+
 from __future__ import annotations
 
 import sys
@@ -63,7 +64,9 @@ def _check_case(case: BenchmarkCase, db: AnalyticalDatabase, orchestrator: Orche
 
     if case.expected_scope and result.scope != case.expected_scope:
         outcome["passed"] = False
-        outcome["checks"].append(f"expected scope={case.expected_scope}, got scope={result.scope} (error={result.error!r})")
+        outcome["checks"].append(
+            f"expected scope={case.expected_scope}, got scope={result.scope} (error={result.error!r})"
+        )
 
     if result.success:
         if not (result.sql or "").strip().lower().startswith(("select", "with")) and result.sql is not None:
@@ -80,7 +83,9 @@ def _check_case(case: BenchmarkCase, db: AnalyticalDatabase, orchestrator: Orche
 
         if case.expected_dimension and result.plan and case.expected_dimension != result.plan.dimension_column:
             outcome["passed"] = False
-            outcome["checks"].append(f"expected dimension_column={case.expected_dimension}, got {result.plan.dimension_column}")
+            outcome["checks"].append(
+                f"expected dimension_column={case.expected_dimension}, got {result.plan.dimension_column}"
+            )
 
         for fragment in case.expected_sql_contains:
             if fragment.upper() not in (result.sql or "").upper():
@@ -97,7 +102,17 @@ def _check_case(case: BenchmarkCase, db: AnalyticalDatabase, orchestrator: Orche
     if result.scope in ("out_of_scope", "unsafe") and result.sql is not None:
         outcome["passed"] = False
         outcome["checks"].append(f"CRITICAL: SQL was generated for a {result.scope} question: {result.sql!r}")
-    if result.error and any(leak in result.error for leak in ("Traceback", "column-matching", "Planner failed", "planner failed", "AnalysisPlan", "PlanValidationError")):
+    if result.error and any(
+        leak in result.error
+        for leak in (
+            "Traceback",
+            "column-matching",
+            "Planner failed",
+            "planner failed",
+            "AnalysisPlan",
+            "PlanValidationError",
+        )
+    ):
         outcome["passed"] = False
         outcome["checks"].append(f"CRITICAL: user-facing error leaks internal detail: {result.error!r}")
 
@@ -110,7 +125,10 @@ def _check_consistency(orchestrator: Orchestrator) -> dict:
     second = orchestrator.analyze(q)
     passed = first.sql == second.sql and first.metrics == second.metrics
     return {
-        "id": "consistency_check", "question": q, "category": "consistency", "dataset": SALES,
+        "id": "consistency_check",
+        "question": q,
+        "category": "consistency",
+        "dataset": SALES,
         "passed": passed,
         "checks": [] if passed else [f"repeated run diverged: {first.sql!r} vs {second.sql!r}"],
     }
@@ -125,7 +143,10 @@ def _check_malformed_llm_sql_is_rejected(db: AnalyticalDatabase) -> dict:
     result = orchestrator.analyze("What is the total revenue?")
     passed = (not result.success) and ("sales" in db.list_tables())
     return {
-        "id": "malformed_sql_check", "question": "(simulated malicious LLM output)", "category": "safety", "dataset": SALES,
+        "id": "malformed_sql_check",
+        "question": "(simulated malicious LLM output)",
+        "category": "safety",
+        "dataset": SALES,
         "passed": passed,
         "checks": [] if passed else ["a destructive statement from the LLM was NOT rejected"],
     }
@@ -137,7 +158,10 @@ def _check_empty_dataset(dataset_key: str) -> dict:
     result = orchestrator.analyze("What is the total revenue?")
     passed = not result.success and "no dataset" in (result.error or "").lower()
     return {
-        "id": "empty_dataset_check", "question": "(no dataset loaded)", "category": "robustness", "dataset": dataset_key,
+        "id": "empty_dataset_check",
+        "question": "(no dataset loaded)",
+        "category": "robustness",
+        "dataset": dataset_key,
         "passed": passed,
         "checks": [] if passed else [f"expected a clear 'no dataset' error, got: {result.error!r}"],
     }

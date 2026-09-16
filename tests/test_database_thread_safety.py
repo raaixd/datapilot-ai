@@ -7,6 +7,7 @@ can only be used in that same thread") to prove it's real, then the rest of
 this file proves create_session_database() fixes it -- across real
 threading.Thread workers, not just a code-review argument.
 """
+
 import os
 import threading
 import unittest
@@ -110,6 +111,7 @@ class TestSessionDatabaseThreadSafety(unittest.TestCase):
         after (no stale-read / uncommitted-write issue)."""
         db = AnalyticalDatabase.create_session_database()
         try:
+
             def loader():
                 db.load_dataframe(pd.DataFrame({"x": [1, 2, 3, 4, 5]}), "t")
 
@@ -306,11 +308,13 @@ class TestNumericStringCoercion(unittest.TestCase):
         from app.data.profiler import DataProfiler
         from app.llm.mock_client import MockLLMClient
 
-        df = pd.DataFrame({
-            "order_date": ["2024-01-01", "2024-02-01", "2024-03-01"],
-            "region": ["North", "South", "North"],
-            "revenue": ["1,234.56", "2,000.00", "500.25"],
-        })
+        df = pd.DataFrame(
+            {
+                "order_date": ["2024-01-01", "2024-02-01", "2024-03-01"],
+                "region": ["North", "South", "North"],
+                "revenue": ["1,234.56", "2,000.00", "500.25"],
+            }
+        )
         profile = DataProfiler().profile(df, dataset_name="test")
         db = AnalyticalDatabase(backend="sqlite", path=":memory:")
         db.load_dataframe(df, "sales")

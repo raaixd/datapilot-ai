@@ -1,4 +1,5 @@
 """Dataset-scoped API state for the in-process demo service."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,7 +36,9 @@ class DatasetRegistry:
         schema = db.load_dataframe(df, table_name)
         state = DatasetState(
             db=db,
-            orchestrator=Orchestrator(db, self._llm_factory(self._settings), self._settings.max_result_rows, self._settings),
+            orchestrator=Orchestrator(
+                db, self._llm_factory(self._settings), self._settings.max_result_rows, self._settings
+            ),
             profile=DataProfiler().profile(df, dataset_name=table_name),
             schema=schema,
         )

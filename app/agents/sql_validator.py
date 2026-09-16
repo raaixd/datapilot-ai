@@ -25,6 +25,7 @@ Checks performed, in order:
 unsafe" -- it only raises for programmer errors (e.g. bad schema input).
 Callers must check `.is_valid` before executing `.safe_sql`.
 """
+
 from __future__ import annotations
 
 import re
@@ -33,9 +34,26 @@ from dataclasses import dataclass, field
 from app.data.database import TableSchema
 
 _FORBIDDEN_KEYWORDS = {
-    "insert", "update", "delete", "drop", "alter", "truncate", "create",
-    "replace", "grant", "revoke", "attach", "detach", "pragma", "vacuum",
-    "exec", "execute", "call", "load_extension", "readfile", "writefile",
+    "insert",
+    "update",
+    "delete",
+    "drop",
+    "alter",
+    "truncate",
+    "create",
+    "replace",
+    "grant",
+    "revoke",
+    "attach",
+    "detach",
+    "pragma",
+    "vacuum",
+    "exec",
+    "execute",
+    "call",
+    "load_extension",
+    "readfile",
+    "writefile",
 }
 
 _SYSTEM_TABLE_PATTERNS = [
@@ -132,7 +150,9 @@ def validate_sql(sql: str, schema: dict[str, TableSchema], max_result_rows: int 
 
     for pattern in _SYSTEM_TABLE_PATTERNS:
         if pattern.search(body):
-            return ValidationResult(is_valid=False, errors=["Query references a system/catalog table, which is not allowed."])
+            return ValidationResult(
+                is_valid=False, errors=["Query references a system/catalog table, which is not allowed."]
+            )
 
     if re.search(r"\bunion\b", body, re.IGNORECASE):
         return ValidationResult(is_valid=False, errors=["UNION queries are not allowed."])
@@ -152,9 +172,7 @@ def validate_sql(sql: str, schema: dict[str, TableSchema], max_result_rows: int 
     if referenced_tables and not unknown_tables:
         known_columns: set[str] = set()
         for table_name in referenced_tables:
-            table = schema.get(table_name) or next(
-                (v for k, v in schema.items() if k.lower() == table_name), None
-            )
+            table = schema.get(table_name) or next((v for k, v in schema.items() if k.lower() == table_name), None)
             if table:
                 known_columns |= {c[0].lower() for c in table.columns}
         select_clause_match = re.search(r"select\s+(.*?)\s+from\s", body, re.IGNORECASE | re.DOTALL)
@@ -162,8 +180,7 @@ def validate_sql(sql: str, schema: dict[str, TableSchema], max_result_rows: int 
             select_clause = select_clause_match.group(1)
             if select_clause.strip() != "*":
                 candidate_cols = {
-                    t.lower() for t in _TOKEN_RE.findall(select_clause)
-                    if t.lower() not in _SQL_FUNCTION_WORDS
+                    t.lower() for t in _TOKEN_RE.findall(select_clause) if t.lower() not in _SQL_FUNCTION_WORDS
                 }
                 unknown_cols = candidate_cols - known_columns - known_tables
                 # Heuristic only (aliases and expressions can produce false
@@ -191,10 +208,50 @@ def validate_sql(sql: str, schema: dict[str, TableSchema], max_result_rows: int 
 
 
 _SQL_FUNCTION_WORDS = {
-    "select", "as", "sum", "avg", "count", "min", "max", "distinct", "case",
-    "when", "then", "else", "end", "and", "or", "not", "in", "is", "null",
-    "like", "between", "order", "by", "group", "having", "asc", "desc",
-    "cast", "round", "strftime", "date", "coalesce", "over", "partition",
-    "row_number", "rank", "with", "on", "left", "right", "inner", "join",
-    "from", "where", "limit", "julianday",
+    "select",
+    "as",
+    "sum",
+    "avg",
+    "count",
+    "min",
+    "max",
+    "distinct",
+    "case",
+    "when",
+    "then",
+    "else",
+    "end",
+    "and",
+    "or",
+    "not",
+    "in",
+    "is",
+    "null",
+    "like",
+    "between",
+    "order",
+    "by",
+    "group",
+    "having",
+    "asc",
+    "desc",
+    "cast",
+    "round",
+    "strftime",
+    "date",
+    "coalesce",
+    "over",
+    "partition",
+    "row_number",
+    "rank",
+    "with",
+    "on",
+    "left",
+    "right",
+    "inner",
+    "join",
+    "from",
+    "where",
+    "limit",
+    "julianday",
 }

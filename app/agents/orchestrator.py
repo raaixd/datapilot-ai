@@ -16,6 +16,7 @@ It never invents data: if planning fails, if SQL is rejected by the
 validator, or if execution raises, the resulting AnalysisResult has
 success=False and a clear error message instead of a fabricated answer.
 """
+
 from __future__ import annotations
 
 import json
@@ -53,16 +54,23 @@ class AnalysisResult:
     error: str | None = None
     validation_warnings: list[str] = field(default_factory=list)
     llm_provider: str | None = None  # e.g. "mock" -- never claim a real model answered when it didn't
-    scope: str = "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    scope: str = (
+        "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    )
     clarification_options: list[str] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)  # e.g. "I can't email this" -- surfaced alongside a successful answer
+    notes: list[str] = field(
+        default_factory=list
+    )  # e.g. "I can't email this" -- surfaced alongside a successful answer
     debug_info: str | None = None  # raw technical detail (exception text, validator errors) -- NEVER shown to
-                                    # normal users; only surfaced by a caller when Settings.debug_mode is True
+    # normal users; only surfaced by a caller when Settings.debug_mode is True
 
 
 class Orchestrator:
     def __init__(
-        self, db: AnalyticalDatabase, llm_client: LLMClient, max_result_rows: int = 1000,
+        self,
+        db: AnalyticalDatabase,
+        llm_client: LLMClient,
+        max_result_rows: int = 1000,
         settings: Settings | None = None,
     ):
         self._db = db
@@ -80,12 +88,21 @@ class Orchestrator:
 
         schema = self._db.describe_schema()
         if not schema:
-            return self._fail(question, "No dataset has been loaded. Upload a CSV or Excel file before asking a question.", scope="out_of_scope")
+            return self._fail(
+                question,
+                "No dataset has been loaded. Upload a CSV or Excel file before asking a question.",
+                scope="out_of_scope",
+            )
 
         warnings = list(data_profile.warnings) if data_profile else []
 
         scope_result = classify_scope(question, schema)
-        logger.info("Scope classification: scope=%s confidence=%.2f reason=%r", scope_result.scope, scope_result.confidence, scope_result.reason)
+        logger.info(
+            "Scope classification: scope=%s confidence=%.2f reason=%r",
+            scope_result.scope,
+            scope_result.confidence,
+            scope_result.reason,
+        )
 
         if scope_result.scope == "unsafe":
             logger.warning("Unsafe question blocked before planning: %r", question)
@@ -96,7 +113,10 @@ class Orchestrator:
 
         if scope_result.scope == "ambiguous":
             return self._fail(
-                question, scope_result.user_facing_message, warnings=warnings, scope="ambiguous",
+                question,
+                scope_result.user_facing_message,
+                warnings=warnings,
+                scope="ambiguous",
                 clarification_options=scope_result.clarification_options,
             )
 
@@ -114,8 +134,12 @@ class Orchestrator:
             options = plan.ambiguous_options or self._numeric_column_options(schema)
             return self._fail(
                 question,
-                plan.clarification_needed or "I need a bit more detail to answer that -- could you specify a metric to analyze?",
-                plan=plan, warnings=warnings, scope="ambiguous", clarification_options=options,
+                plan.clarification_needed
+                or "I need a bit more detail to answer that -- could you specify a metric to analyze?",
+                plan=plan,
+                warnings=warnings,
+                scope="ambiguous",
+                clarification_options=options,
             )
 
         if plan.is_profile_only:
@@ -126,8 +150,11 @@ class Orchestrator:
 
         if not plan.is_answerable:
             return self._fail(
-                question, plan.clarification_needed or "I need a bit more detail to answer that.",
-                plan=plan, warnings=warnings, scope="ambiguous",
+                question,
+                plan.clarification_needed or "I need a bit more detail to answer that.",
+                plan=plan,
+                warnings=warnings,
+                scope="ambiguous",
             )
 
         raw_sql = self._sql_generator.generate(plan, schema)
@@ -135,9 +162,13 @@ class Orchestrator:
         if not validation.is_valid:
             logger.warning("Generated SQL failed validation: %s", validation.errors)
             return self._fail(
-                question, "That question produced a query that didn't pass our safety checks, so I didn't run it. "
-                           "Try rephrasing it more simply, or ask about a different metric.",
-                plan=plan, sql=raw_sql, warnings=warnings, scope="in_scope",
+                question,
+                "That question produced a query that didn't pass our safety checks, so I didn't run it. "
+                "Try rephrasing it more simply, or ask about a different metric.",
+                plan=plan,
+                sql=raw_sql,
+                warnings=warnings,
+                scope="in_scope",
                 debug_info="SQL validation errors: " + "; ".join(validation.errors),
             )
 
@@ -146,10 +177,14 @@ class Orchestrator:
         except Exception as exc:  # surfaced, never swallowed
             logger.exception("Query execution failed")
             return self._fail(
-                question, "I generated a query for that but it failed to run against your data. "
-                           "This can happen with unusual column types or values -- try a simpler question.",
-                plan=plan, sql=validation.safe_sql, warnings=warnings,
-                validation_warnings=validation.warnings, scope="in_scope",
+                question,
+                "I generated a query for that but it failed to run against your data. "
+                "This can happen with unusual column types or values -- try a simpler question.",
+                plan=plan,
+                sql=validation.safe_sql,
+                warnings=warnings,
+                validation_warnings=validation.warnings,
+                scope="in_scope",
                 debug_info=f"Query execution failed: {exc!r}",
             )
 
@@ -177,7 +212,11 @@ class Orchestrator:
         )
 
     def _answer_from_profile(
-        self, question: str, plan: AnalysisPlan, data_profile: DataProfile | None, warnings: list,
+        self,
+        question: str,
+        plan: AnalysisPlan,
+        data_profile: DataProfile | None,
+        warnings: list,
         scope_result: ScopeResult | None = None,
     ) -> AnalysisResult:
         """Answer missing_data / duplicate_analysis / descriptive_stats directly
@@ -185,23 +224,30 @@ class Orchestrator:
         supplied, this fails honestly rather than fabricating numbers."""
         if data_profile is None:
             return self._fail(
-                question, "This question needs the dataset's data-quality profile, which hasn't been computed yet.",
-                plan=plan, warnings=warnings, scope="in_scope",
+                question,
+                "This question needs the dataset's data-quality profile, which hasn't been computed yet.",
+                plan=plan,
+                warnings=warnings,
+                scope="in_scope",
             )
 
         if plan.intent == "missing_data":
             missing_cols = [c for c in data_profile.columns if c.null_count > 0]
             insight = (
                 f"{len(missing_cols)} of {data_profile.column_count} column(s) have missing values."
-                if missing_cols else "No missing values were found in any column."
+                if missing_cols
+                else "No missing values were found in any column."
             )
-            metrics = {"columns_with_missing_values": len(missing_cols),
-                       "total_missing_cells": sum(c.null_count for c in missing_cols)}
+            metrics = {
+                "columns_with_missing_values": len(missing_cols),
+                "total_missing_cells": sum(c.null_count for c in missing_cols),
+            }
             preview = [{"column": c.name, "null_count": c.null_count, "null_pct": c.null_pct} for c in missing_cols]
         elif plan.intent == "duplicate_analysis":
             insight = (
                 f"{data_profile.duplicate_row_count} duplicate row(s) found out of {data_profile.row_count}."
-                if data_profile.duplicate_row_count else "No duplicate rows were found."
+                if data_profile.duplicate_row_count
+                else "No duplicate rows were found."
             )
             metrics = {"duplicate_row_count": data_profile.duplicate_row_count, "row_count": data_profile.row_count}
             preview = []
@@ -209,23 +255,43 @@ class Orchestrator:
             insight = f"'{data_profile.row_count}' rows across {data_profile.column_count} columns."
             metrics = {"row_count": data_profile.row_count, "column_count": data_profile.column_count}
             preview = [
-                {"column": c.name, "type": c.inferred_type, "mean": c.mean, "min": c.min, "max": c.max,
-                 "distinct_count": c.distinct_count}
+                {
+                    "column": c.name,
+                    "type": c.inferred_type,
+                    "mean": c.mean,
+                    "min": c.min,
+                    "max": c.max,
+                    "distinct_count": c.distinct_count,
+                }
                 for c in data_profile.columns
             ]
 
         notes = [scope_result.unsupported_action_note] if scope_result and scope_result.unsupported_action_note else []
         return AnalysisResult(
-            question=question, success=True, plan=plan, sql=None,
-            result_preview=preview, metrics=metrics, insight=insight,
-            chart_type="table", data_quality_warnings=warnings,
+            question=question,
+            success=True,
+            plan=plan,
+            sql=None,
+            result_preview=preview,
+            metrics=metrics,
+            insight=insight,
+            chart_type="table",
+            data_quality_warnings=warnings,
             follow_up_questions=["Would you like to see this broken down by column or category?"],
-            llm_provider=self._llm_provider, scope="in_scope", notes=notes,
+            llm_provider=self._llm_provider,
+            scope="in_scope",
+            notes=notes,
         )
 
     def _answer_anomaly_detection(
-        self, question: str, plan: AnalysisPlan, schema, data_profile: DataProfile | None, warnings: list,
-        scope_result: ScopeResult | None = None, z_threshold: float = 2.0,
+        self,
+        question: str,
+        plan: AnalysisPlan,
+        schema,
+        data_profile: DataProfile | None,
+        warnings: list,
+        scope_result: ScopeResult | None = None,
+        z_threshold: float = 2.0,
     ) -> AnalysisResult:
         """Flag rows whose metric value is more than `z_threshold` standard
         deviations from the column's mean.
@@ -245,8 +311,11 @@ class Orchestrator:
         """
         if data_profile is None:
             return self._fail(
-                question, "Detecting anomalies needs the dataset's data-quality profile, which hasn't been computed yet.",
-                plan=plan, warnings=warnings, scope="in_scope",
+                question,
+                "Detecting anomalies needs the dataset's data-quality profile, which hasn't been computed yet.",
+                plan=plan,
+                warnings=warnings,
+                scope="in_scope",
             )
 
         column_profile = next((c for c in data_profile.columns if c.name == plan.metric_column), None)
@@ -255,27 +324,38 @@ class Orchestrator:
                 question,
                 f"I don't have enough statistics on '{plan.metric_column}' to detect anomalies in it "
                 f"(it may be entirely empty, or not numeric).",
-                plan=plan, warnings=warnings, scope="in_scope",
+                plan=plan,
+                warnings=warnings,
+                scope="in_scope",
             )
         if column_profile.std == 0:
             return AnalysisResult(
-                question=question, success=True, plan=plan, sql=None,
+                question=question,
+                success=True,
+                plan=plan,
+                sql=None,
                 metrics={"anomaly_count": 0, "mean": column_profile.mean, "std": 0},
                 insight=f"Every value in '{plan.metric_column}' is the same ({column_profile.mean}), "
-                        f"so there's no variation to detect anomalies against.",
-                chart_type="table", data_quality_warnings=warnings, llm_provider=self._llm_provider, scope="in_scope",
+                f"so there's no variation to detect anomalies against.",
+                chart_type="table",
+                data_quality_warnings=warnings,
+                llm_provider=self._llm_provider,
+                scope="in_scope",
             )
 
         sql = (
             f'SELECT * FROM "{plan.table}" WHERE ABS("{plan.metric_column}" - {column_profile.mean}) '
-            f'> {z_threshold} * {column_profile.std} LIMIT {self._max_result_rows}'
+            f"> {z_threshold} * {column_profile.std} LIMIT {self._max_result_rows}"
         )
         validation = validate_sql(sql, schema, max_result_rows=self._max_result_rows)
         if not validation.is_valid:
             logger.error("Internally constructed anomaly-detection SQL failed validation: %s", validation.errors)
             return self._fail(
-                question, "I couldn't safely construct an anomaly-detection query for that column.",
-                plan=plan, warnings=warnings, scope="in_scope",
+                question,
+                "I couldn't safely construct an anomaly-detection query for that column.",
+                plan=plan,
+                warnings=warnings,
+                scope="in_scope",
                 debug_info="Anomaly SQL validation errors: " + "; ".join(validation.errors),
             )
 
@@ -284,43 +364,73 @@ class Orchestrator:
         except Exception as exc:
             logger.exception("Anomaly-detection query execution failed")
             return self._fail(
-                question, "I tried to check for anomalies but the query failed to run against your data.",
-                plan=plan, sql=validation.safe_sql, warnings=warnings, scope="in_scope",
+                question,
+                "I tried to check for anomalies but the query failed to run against your data.",
+                plan=plan,
+                sql=validation.safe_sql,
+                warnings=warnings,
+                scope="in_scope",
                 debug_info=f"Query execution failed: {exc!r}",
             )
 
         count = len(result_df)
         metrics = {
-            "anomaly_count": count, "mean": column_profile.mean, "std": column_profile.std,
-            "z_threshold": z_threshold, "row_count": data_profile.row_count,
+            "anomaly_count": count,
+            "mean": column_profile.mean,
+            "std": column_profile.std,
+            "z_threshold": z_threshold,
+            "row_count": data_profile.row_count,
         }
         insight = (
             f"No values in '{plan.metric_column}' fall more than {z_threshold:g} standard deviations from "
             f"the mean ({column_profile.mean:g}) -- nothing unusual detected."
-            if count == 0 else
-            f"Found {count} row(s) where '{plan.metric_column}' is more than {z_threshold:g} standard "
+            if count == 0
+            else f"Found {count} row(s) where '{plan.metric_column}' is more than {z_threshold:g} standard "
             f"deviations from the mean ({column_profile.mean:g}, std {column_profile.std:g})."
         )
         notes = [scope_result.unsupported_action_note] if scope_result and scope_result.unsupported_action_note else []
 
         return AnalysisResult(
-            question=question, success=True, plan=plan, sql=validation.safe_sql,
-            result_preview=result_df.head(20).to_dict(orient="records"), metrics=metrics, insight=insight,
-            chart_type="table", data_quality_warnings=warnings,
+            question=question,
+            success=True,
+            plan=plan,
+            sql=validation.safe_sql,
+            result_preview=result_df.head(20).to_dict(orient="records"),
+            metrics=metrics,
+            insight=insight,
+            chart_type="table",
+            data_quality_warnings=warnings,
             follow_up_questions=[f"What do these {plan.metric_column} outliers have in common?"],
-            validation_warnings=validation.warnings, llm_provider=self._llm_provider, scope="in_scope", notes=notes,
+            validation_warnings=validation.warnings,
+            llm_provider=self._llm_provider,
+            scope="in_scope",
+            notes=notes,
         )
 
-
     def _fail(
-        self, question, error, plan=None, sql=None, warnings=None, validation_warnings=None,
-        scope: str = "out_of_scope", clarification_options: list[str] | None = None, debug_info: str | None = None,
+        self,
+        question,
+        error,
+        plan=None,
+        sql=None,
+        warnings=None,
+        validation_warnings=None,
+        scope: str = "out_of_scope",
+        clarification_options: list[str] | None = None,
+        debug_info: str | None = None,
     ) -> AnalysisResult:
         return AnalysisResult(
-            question=question, success=False, plan=plan, sql=sql, error=error,
-            data_quality_warnings=warnings or [], validation_warnings=validation_warnings or [],
-            llm_provider=self._llm_provider, scope=scope,
-            clarification_options=clarification_options or [], debug_info=debug_info,
+            question=question,
+            success=False,
+            plan=plan,
+            sql=sql,
+            error=error,
+            data_quality_warnings=warnings or [],
+            validation_warnings=validation_warnings or [],
+            llm_provider=self._llm_provider,
+            scope=scope,
+            clarification_options=clarification_options or [],
+            debug_info=debug_info,
         )
 
     def _numeric_column_options(self, schema) -> list[str]:
@@ -340,11 +450,15 @@ class Orchestrator:
 def _default_follow_ups(plan: AnalysisPlan) -> list[str]:
     metric = plan.metric_column or "this metric"
     if plan.intent in ("trend", "trend_by_dimension", "percentage_change"):
-        return [f"What drove the biggest month-over-month change in {metric}?",
-                "How does this compare to the same period last year?"]
+        return [
+            f"What drove the biggest month-over-month change in {metric}?",
+            "How does this compare to the same period last year?",
+        ]
     if plan.intent == "ranking":
-        return [f"What does the trend for the top entry's {metric} look like over time?",
-                f"How concentrated is {metric} among the top few?"]
+        return [
+            f"What does the trend for the top entry's {metric} look like over time?",
+            f"How concentrated is {metric} among the top few?",
+        ]
     if plan.intent == "grouped_comparison":
         return [f"Which of these groups grew the fastest in {metric}?"]
     if plan.intent == "aggregation":

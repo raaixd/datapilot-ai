@@ -10,12 +10,19 @@ doesn't name any specific column; the mock LLM needs the same list to
 actually route to the right intent). A single shared list means the two
 can't silently drift apart -- if a phrase is added here, both recognize it.
 """
+
 from __future__ import annotations
 
 MISSING_DATA_HINTS = ["missing value", "missing data", "null value", "how complete", "data quality", "data is missing"]
 DUPLICATE_HINTS = ["duplicate", "duplicated", "repeated rows", "same row twice"]
-DESCRIPTIVE_STATS_HINTS = ["describe the data", "summary statistics", "basic statistics", "descriptive statistics",
-                           "summarize the data", "overview of the data"]
+DESCRIPTIVE_STATS_HINTS = [
+    "describe the data",
+    "summary statistics",
+    "basic statistics",
+    "descriptive statistics",
+    "summarize the data",
+    "overview of the data",
+]
 COUNT_HINTS = ["how many", "count", "number of"]
 # Generic nouns referring to "rows in this dataset" rather than some
 # unrelated real-world countable thing -- deliberately bounded so "how many

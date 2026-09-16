@@ -20,6 +20,7 @@ FastAPI backend over HTTP, so it works standalone with just
 independently; see README.md's "Running it" / "How the API and frontend
 relate" section.
 """
+
 from __future__ import annotations
 
 import logging
@@ -40,7 +41,7 @@ from app.visualization.charts import build_chart
 
 configure_logging()
 logger = logging.getLogger(__name__)
-st.set_page_config(page_title="DataPilot AI", page_icon="\U0001F4CA", layout="wide")
+st.set_page_config(page_title="DataPilot AI", page_icon="\U0001f4ca", layout="wide")
 
 # -- Visual polish: a small design-token system (CSS variables), a hero
 # banner, and severity badges. This is CSS/layout only -- no behavior
@@ -107,7 +108,9 @@ st.markdown(
 
 
 def _badge(severity: str) -> str:
-    cls = {"critical": "dp-badge-critical", "warning": "dp-badge-warning", "info": "dp-badge-info"}.get(severity, "dp-badge-info")
+    cls = {"critical": "dp-badge-critical", "warning": "dp-badge-warning", "info": "dp-badge-info"}.get(
+        severity, "dp-badge-info"
+    )
     return f'<span class="dp-badge {cls}">{severity.upper()}</span>'
 
 
@@ -121,7 +124,12 @@ EXAMPLE_QUESTIONS = [
     "How much data is missing?",
 ]
 
-SCOPE_ICON = {"out_of_scope": "\U0001F4AC", "ambiguous": "\U0001F914", "unsafe": "\U0001F6D1", "in_scope": "\u26A0\ufe0f"}
+SCOPE_ICON = {
+    "out_of_scope": "\U0001f4ac",
+    "ambiguous": "\U0001f914",
+    "unsafe": "\U0001f6d1",
+    "in_scope": "\u26a0\ufe0f",
+}
 
 
 @st.cache_resource
@@ -175,7 +183,7 @@ for key, default in [("history", []), ("profile", None), ("table_name", None), (
 st.markdown(
     """
     <div class="dp-hero">
-        <h1>\U0001F4CA DataPilot AI</h1>
+        <h1>\U0001f4ca DataPilot AI</h1>
         <p>Ask business questions about your data in plain English and get back the SQL used,
         computed metrics, a chart, and an exportable report.</p>
     </div>
@@ -193,7 +201,7 @@ if settings.llm_provider == "mock":
 with st.sidebar:
     st.header("1. Load a dataset")
     if st.session_state.table_name:
-        st.caption(f"\U0001F4C1 Currently loaded: **{st.session_state.table_name}**")
+        st.caption(f"\U0001f4c1 Currently loaded: **{st.session_state.table_name}**")
 
     uploaded = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx", "xls"])
     use_sample = st.button("Use sample sales dataset", use_container_width=True)
@@ -224,7 +232,7 @@ with st.sidebar:
 
     if st.session_state.profile is not None:
         st.divider()
-        if st.button("\U0001F501 Start over (clear dataset & history)", use_container_width=True):
+        if st.button("\U0001f501 Start over (clear dataset & history)", use_container_width=True):
             db.drop_all_tables()
             for key in ("profile", "table_name", "last_result", "history", "question_input"):
                 st.session_state.pop(key, None)
@@ -239,14 +247,14 @@ with st.sidebar:
 
 if st.session_state.profile is None:
     st.info(
-        "\U0001F446 Upload a CSV/Excel file or click **'Use sample sales dataset'** in the sidebar to get started.\n\n"
+        "\U0001f446 Upload a CSV/Excel file or click **'Use sample sales dataset'** in the sidebar to get started.\n\n"
         "New here? Try one of these once a dataset is loaded:\n" + "\n".join(f"- {q}" for q in EXAMPLE_QUESTIONS)
     )
 else:
     profile = st.session_state.profile
 
     with st.container(border=True):
-        st.markdown("##### \U0001F4CB Dataset preview")
+        st.markdown("##### \U0001f4cb Dataset preview")
         try:
             preview_df = db.query(f'SELECT * FROM "{st.session_state.table_name}" LIMIT 20', max_rows=20)
             st.dataframe(preview_df, use_container_width=True, height=210)
@@ -254,7 +262,7 @@ else:
             st.caption(f"Preview unavailable: {exc}")
 
     with st.container(border=True):
-        st.markdown("##### \U0001F9EA Data quality summary")
+        st.markdown("##### \U0001f9ea Data quality summary")
         col1, col2, col3 = st.columns(3)
         col1.metric("Rows", profile.row_count)
         col2.metric("Columns", profile.column_count)
@@ -264,13 +272,15 @@ else:
             st.dataframe(pd.DataFrame([vars(c) for c in profile.columns]), use_container_width=True)
 
         if profile.warnings:
-            with st.expander(f"{len(profile.warnings)} data quality warning(s)", expanded=profile.has_critical_warnings):
+            with st.expander(
+                f"{len(profile.warnings)} data quality warning(s)", expanded=profile.has_critical_warnings
+            ):
                 for w in profile.warnings:
                     st.markdown(f"{_badge(w.severity)} **{w.column}** -- {w.message}", unsafe_allow_html=True)
         else:
             st.success("No data quality issues detected.")
 
-    st.markdown("### \U0001F4AC Ask a question")
+    st.markdown("### \U0001f4ac Ask a question")
 
     # -- Question input, rewritten (round 3) to fix a reported bug: the
     # "Type a question first..." warning could appear even after typing a
@@ -329,7 +339,8 @@ else:
     # outside it and use their own on_click callback instead.)
     with st.form(key="question_form", clear_on_submit=False):
         st.text_input(
-            "Business question", key="question_input",
+            "Business question",
+            key="question_input",
             placeholder="What is the total revenue by product category? (press Enter or click Analyze)",
         )
         ask = st.form_submit_button("Analyze", type="primary")
@@ -338,12 +349,14 @@ else:
 
     if debug_mode:
         with st.expander("Debug: session state snapshot", expanded=True):
-            st.json({
-                "question_input": st.session_state.get("question_input"),
-                "ask_clicked_this_run": ask,
-                "history_length": len(st.session_state.history),
-                "has_last_result": st.session_state.last_result is not None,
-            })
+            st.json(
+                {
+                    "question_input": st.session_state.get("question_input"),
+                    "ask_clicked_this_run": ask,
+                    "history_length": len(st.session_state.history),
+                    "has_last_result": st.session_state.last_result is not None,
+                }
+            )
 
     current_question = st.session_state.get("question_input", "")
 
@@ -388,7 +401,13 @@ else:
                     for i, opt in enumerate(result.clarification_options):
                         with opt_cols[i % len(opt_cols)]:
                             question_for_opt = f"What is the total {opt}?"
-                            st.button(opt, key=f"clarify_{opt}", on_click=_use_question, args=(question_for_opt,), use_container_width=True)
+                            st.button(
+                                opt,
+                                key=f"clarify_{opt}",
+                                on_click=_use_question,
+                                args=(question_for_opt,),
+                                use_container_width=True,
+                            )
                 elif result.plan and result.plan.ambiguous_options:
                     st.write("This could mean:")
                     for opt in result.plan.ambiguous_options:
@@ -404,11 +423,15 @@ else:
                 if result.llm_provider == "mock":
                     st.caption("Generated by the deterministic mock LLM (no live model call was made).")
 
-                tab_chart, tab_sql, tab_data, tab_report = st.tabs(["\U0001F4C8 Chart", "\U0001F5C4\ufe0f SQL", "\U0001F522 Data", "\U0001F4E5 Export"])
+                tab_chart, tab_sql, tab_data, tab_report = st.tabs(
+                    ["\U0001f4c8 Chart", "\U0001f5c4\ufe0f SQL", "\U0001f522 Data", "\U0001f4e5 Export"]
+                )
 
                 with tab_chart:
                     if result.sql is None:
-                        st.info("This question was answered directly from the data-quality profile; there's no query result to chart.")
+                        st.info(
+                            "This question was answered directly from the data-quality profile; there's no query result to chart."
+                        )
                     else:
                         fig = build_chart(result)
                         if fig is not None:
@@ -422,15 +445,19 @@ else:
                         for w in result.validation_warnings:
                             st.caption(f"\u2139\ufe0f {w}")
                     else:
-                        st.caption("No SQL was generated -- this question was answered directly from the dataset profile.")
+                        st.caption(
+                            "No SQL was generated -- this question was answered directly from the dataset profile."
+                        )
 
                 with tab_data:
                     data_df = pd.DataFrame(result.result_preview)
                     st.dataframe(data_df, use_container_width=True)
                     if not data_df.empty:
                         st.download_button(
-                            "Download result as CSV", data_df.to_csv(index=False),
-                            file_name="datapilot_result.csv", mime="text/csv",
+                            "Download result as CSV",
+                            data_df.to_csv(index=False),
+                            file_name="datapilot_result.csv",
+                            mime="text/csv",
                         )
                     if result.metrics:
                         st.json(result.metrics)
@@ -441,6 +468,7 @@ else:
                     try:
                         import os
                         import tempfile
+
                         # A unique temp path per call -- a shared hardcoded path
                         # here would let two concurrent sessions race on the
                         # same file (one session's download could get another
@@ -451,7 +479,12 @@ else:
                         try:
                             render_pdf_report(result, pdf_path)
                             with open(pdf_path, "rb") as f:
-                                st.download_button("Download PDF report", f.read(), file_name="datapilot_report.pdf", mime="application/pdf")
+                                st.download_button(
+                                    "Download PDF report",
+                                    f.read(),
+                                    file_name="datapilot_report.pdf",
+                                    mime="application/pdf",
+                                )
                         finally:
                             os.remove(pdf_path)
                     except Exception as exc:

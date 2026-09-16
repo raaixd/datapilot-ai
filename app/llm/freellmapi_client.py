@@ -7,6 +7,7 @@ from app.llm.base import LLMClient
 
 class FreeLLMAPIClient(LLMClient):
     """LLM client for the local FreeLLMAPI OpenAI-compatible server."""
+
     provider_name = "freellmapi"
 
     def __init__(

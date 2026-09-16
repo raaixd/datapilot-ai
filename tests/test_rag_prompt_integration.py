@@ -6,6 +6,7 @@ and asserts the retrieved context is actually present in it -- this is
 what distinguishes "a real retrieval step feeding the LLM" from "RAG as a
 label" (see app/rag/retriever.py's module docstring).
 """
+
 import unittest
 
 import pandas as pd
@@ -32,11 +33,16 @@ class RecordingLLMClient(LLMClient):
 
 
 def _sales_schema_and_db():
-    df = pd.DataFrame({
-        "order_date": ["2024-01-01", "2024-02-01"], "region": ["North", "South"],
-        "product_category": ["Electronics", "Apparel"], "quantity": [1, 2],
-        "unit_price": [10.0, 20.0], "revenue": [10.0, 40.0],
-    })
+    df = pd.DataFrame(
+        {
+            "order_date": ["2024-01-01", "2024-02-01"],
+            "region": ["North", "South"],
+            "product_category": ["Electronics", "Apparel"],
+            "quantity": [1, 2],
+            "unit_price": [10.0, 20.0],
+            "revenue": [10.0, 40.0],
+        }
+    )
     db = AnalyticalDatabase(backend="sqlite", path=":memory:")
     db.load_dataframe(df, "sales")
     return db.describe_schema(), db

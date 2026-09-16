@@ -8,6 +8,7 @@ at the FastAPI edge (app/api/schemas.py) to validate HTTP request/response
 bodies. This keeps the core testable and importable in any environment,
 even one where the web dependencies are not installed.
 """
+
 from __future__ import annotations
 
 import os
@@ -26,7 +27,9 @@ class Settings:
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "claude-sonnet-4-6"))
 
     # Data layer
-    database_backend: str = field(default_factory=lambda: os.getenv("DATABASE_BACKEND", "sqlite"))  # "sqlite" or "duckdb"
+    database_backend: str = field(
+        default_factory=lambda: os.getenv("DATABASE_BACKEND", "sqlite")
+    )  # "sqlite" or "duckdb"
     database_path: str = field(default_factory=lambda: os.getenv("DATABASE_PATH", "data/datapilot.db"))
 
     # SQL safety

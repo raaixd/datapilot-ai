@@ -15,6 +15,7 @@ installed, a plan crossing the HTTP boundary gets a second, independent
 validation pass (on top of AnalysisPlan.validate(), which already runs
 inside the tested core) -- belt and suspenders, not a replacement.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, field_validator
@@ -43,6 +44,7 @@ class FilterOut(BaseModel):
 
 class AnalysisPlanModel(BaseModel):
     """HTTP-facing mirror of app.agents.planner.AnalysisPlan."""
+
     intent: str
     table: str | None = None
     metric_column: str | None = None
@@ -116,7 +118,9 @@ class QueryResponse(BaseModel):
     data_quality_warnings: list[DataQualityWarningOut] = []
     error: str | None = None
     llm_provider: str | None = None  # e.g. "mock" -- never implies a live model ran when it didn't
-    scope: str = "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    scope: str = (
+        "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
+    )
     clarification_options: list[str] = []
     notes: list[str] = []
 

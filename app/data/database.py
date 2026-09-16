@@ -67,6 +67,7 @@ they should call `AnalyticalDatabase.create_session_database()` instead,
 which returns a thread-safe, file-backed instance whose temp file is
 cleaned up by `close()`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -139,7 +140,7 @@ class AnalyticalDatabase:
             raise UnsupportedBackendError(f"Unknown DATABASE_BACKEND '{backend}'. Use 'sqlite' or 'duckdb'.")
 
     @classmethod
-    def create_session_database(cls, backend: str = "sqlite") -> "AnalyticalDatabase":
+    def create_session_database(cls, backend: str = "sqlite") -> AnalyticalDatabase:
         """Create a thread-safe, file-backed database suitable for one
         Streamlit/API session. Each call gets its OWN unique temp file --
         this is also the session-isolation mechanism (see README
@@ -222,9 +223,7 @@ class AnalyticalDatabase:
             if not any(t in sqltype.upper() for t in text_types):
                 continue
             try:
-                distinct_count = conn.execute(
-                    f'SELECT COUNT(DISTINCT "{name}") FROM "{table_name}"'
-                ).fetchone()[0]
+                distinct_count = conn.execute(f'SELECT COUNT(DISTINCT "{name}") FROM "{table_name}"').fetchone()[0]
                 if distinct_count == 0 or distinct_count > max_distinct:
                     continue
                 rows = conn.execute(

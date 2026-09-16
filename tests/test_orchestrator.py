@@ -9,12 +9,14 @@ from app.llm.mock_client import MockLLMClient
 
 
 def _sample_df():
-    return pd.DataFrame({
-        "order_date": ["2024-01-01", "2024-01-15", "2024-02-01", "2024-02-20", "2024-03-05"],
-        "region": ["North", "South", "North", "East", "South"],
-        "product_category": ["Electronics", "Apparel", "Electronics", "Books", "Apparel"],
-        "revenue": [100.0, 250.0, 300.0, 50.0, 400.0],
-    })
+    return pd.DataFrame(
+        {
+            "order_date": ["2024-01-01", "2024-01-15", "2024-02-01", "2024-02-20", "2024-03-05"],
+            "region": ["North", "South", "North", "East", "South"],
+            "product_category": ["Electronics", "Apparel", "Electronics", "Books", "Apparel"],
+            "revenue": [100.0, 250.0, 300.0, 50.0, 400.0],
+        }
+    )
 
 
 class TestOrchestrator(unittest.TestCase):
@@ -90,12 +92,14 @@ class TestOrchestrator(unittest.TestCase):
         self.assertIn("sales", self.db.list_tables())
 
     def test_profile_warnings_surface_in_result(self):
-        df = pd.DataFrame({
-            "order_date": ["2024-01-01", None],
-            "region": ["North", "South"],
-            "product_category": ["Electronics", "Apparel"],
-            "revenue": [100.0, None],
-        })
+        df = pd.DataFrame(
+            {
+                "order_date": ["2024-01-01", None],
+                "region": ["North", "South"],
+                "product_category": ["Electronics", "Apparel"],
+                "revenue": [100.0, None],
+            }
+        )
         db = AnalyticalDatabase(backend="sqlite", path=":memory:")
         db.load_dataframe(df, "sales")
         profile = self.profiler.profile(df)
@@ -133,11 +137,13 @@ class TestOrchestrator(unittest.TestCase):
         # Needs both a revenue-like AND a quantity-like numeric column present
         # for "best-selling" to be genuinely ambiguous -- otherwise there's
         # only one possible interpretation and it should just answer it.
-        df = pd.DataFrame({
-            "product_category": ["Electronics", "Apparel", "Electronics"],
-            "revenue": [500.0, 100.0, 300.0],
-            "quantity": [2, 50, 3],
-        })
+        df = pd.DataFrame(
+            {
+                "product_category": ["Electronics", "Apparel", "Electronics"],
+                "revenue": [500.0, 100.0, 300.0],
+                "quantity": [2, 50, 3],
+            }
+        )
         db = AnalyticalDatabase(backend="sqlite", path=":memory:")
         db.load_dataframe(df, "sales")
         orchestrator = Orchestrator(db, MockLLMClient())
@@ -176,8 +182,22 @@ class TestOrchestrator(unittest.TestCase):
     def test_declining_sales_by_dimension(self):
         rows = []
         for month in range(1, 5):
-            rows.append({"order_date": f"2024-{month:02d}-01", "region": "North", "product_category": "Electronics", "revenue": 500 - month * 50})
-            rows.append({"order_date": f"2024-{month:02d}-01", "region": "South", "product_category": "Apparel", "revenue": 100 + month * 50})
+            rows.append(
+                {
+                    "order_date": f"2024-{month:02d}-01",
+                    "region": "North",
+                    "product_category": "Electronics",
+                    "revenue": 500 - month * 50,
+                }
+            )
+            rows.append(
+                {
+                    "order_date": f"2024-{month:02d}-01",
+                    "region": "South",
+                    "product_category": "Apparel",
+                    "revenue": 100 + month * 50,
+                }
+            )
         df = pd.DataFrame(rows)
         db = AnalyticalDatabase(backend="sqlite", path=":memory:")
         db.load_dataframe(df, "sales")
@@ -252,12 +272,14 @@ class TestOrchestrator(unittest.TestCase):
         self.assertTrue(any("analyze() called" in msg for msg in cm.output))
 
     def test_alternate_schema_dataset_resolves_via_synonyms(self):
-        df = pd.DataFrame({
-            "transaction_date": ["2024-01-01", "2024-02-01", "2024-03-01"],
-            "item_name": ["Notebook", "Backpack", "Notebook"],
-            "sales_amount": [50.0, 120.0, 75.0],
-            "units_sold": [5, 2, 7],
-        })
+        df = pd.DataFrame(
+            {
+                "transaction_date": ["2024-01-01", "2024-02-01", "2024-03-01"],
+                "item_name": ["Notebook", "Backpack", "Notebook"],
+                "sales_amount": [50.0, 120.0, 75.0],
+                "units_sold": [5, 2, 7],
+            }
+        )
         db = AnalyticalDatabase(backend="sqlite", path=":memory:")
         db.load_dataframe(df, "ecommerce")
         orchestrator = Orchestrator(db, MockLLMClient())
@@ -311,8 +333,12 @@ class TestOrchestrator(unittest.TestCase):
         # (_sample_df() only has region/product_category/revenue as concrete
         # columns -- no unit_price/quantity -- so these are scoped to what
         # that fixture actually has.)
-        for q in ["What is the total revenue?", "What is the total revenue by product category?",
-                  "Compare revenue between regions", "Show me the monthly revenue trend"]:
+        for q in [
+            "What is the total revenue?",
+            "What is the total revenue by product category?",
+            "Compare revenue between regions",
+            "Show me the monthly revenue trend",
+        ]:
             with self.subTest(question=q):
                 result = self.orchestrator.analyze(q)
                 self.assertTrue(result.success, f"{q!r} should still succeed: {result.error}")

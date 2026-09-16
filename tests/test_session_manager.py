@@ -5,6 +5,7 @@ ALL API clients shared one global dataset). This is fully testable despite
 fastapi itself not being installed, because session_manager.py has zero
 dependency on it.
 """
+
 import time
 import unittest
 
@@ -79,6 +80,7 @@ class TestSessionExpiry(unittest.TestCase):
 
     def test_prune_expired_closes_and_removes_temp_files(self):
         import os
+
         manager = _manager(ttl_seconds=0)
         state = manager.create_session()
         path = state.db.path
@@ -101,6 +103,7 @@ class TestSessionExpiry(unittest.TestCase):
 class TestSessionLifecycle(unittest.TestCase):
     def test_delete_session_removes_it_and_closes_db(self):
         import os
+
         manager = _manager()
         state = manager.create_session()
         path = state.db.path

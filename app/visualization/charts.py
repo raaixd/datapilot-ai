@@ -14,6 +14,7 @@ name app/analytics/metrics.py uses -- see compute_metric_alias()), so a
 query that returns `total_revenue` or `average_unit_price` charts correctly
 without any special-casing here.
 """
+
 from __future__ import annotations
 
 import plotly.express as px

@@ -11,6 +11,7 @@ tests/test_loader.py. `.xls` (old binary Excel format, via `xlrd`) is
 written the same way but xlrd was not installed here, so that specific
 branch is untested -- see the test file's docstring.
 """
+
 from __future__ import annotations
 
 import logging
@@ -62,8 +63,7 @@ def load_tabular_file(file_or_path, filename: str) -> pd.DataFrame:
             return pd.read_excel(file_or_path, engine=engine)
         except ImportError as exc:
             raise MissingOptionalDependencyError(
-                f"Reading '{suffix}' files requires the '{engine}' package. "
-                f"Install it with `pip install {engine}`."
+                f"Reading '{suffix}' files requires the '{engine}' package. Install it with `pip install {engine}`."
             ) from exc
         except ValueError as exc:
             # pandas raises ValueError for a corrupt/unrecognized workbook
@@ -80,9 +80,7 @@ def _load_csv_with_encoding_fallback(file_or_path, filename: str) -> pd.DataFram
         try:
             df = pd.read_csv(file_or_path, encoding=encoding)
             if attempt > 0:
-                logger.warning(
-                    "'%s' was not valid UTF-8; successfully re-read using %s instead.", filename, encoding
-                )
+                logger.warning("'%s' was not valid UTF-8; successfully re-read using %s instead.", filename, encoding)
             return df
         except UnicodeDecodeError as exc:
             last_decode_error = exc

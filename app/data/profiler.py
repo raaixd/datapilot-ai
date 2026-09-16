@@ -7,21 +7,21 @@ statistics, and a list of DataQualityWarning objects. Nothing here depends
 on the LLM, the database layer, or the web framework, so it can be unit
 tested in isolation and reused anywhere a DataFrame shows up.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-import numpy as np
 import pandas as pd
 
 
 @dataclass
 class DataQualityWarning:
     column: str
-    issue: str          # short machine-readable code, e.g. "missing_values"
-    severity: str        # "info" | "warning" | "critical"
-    message: str          # human-readable explanation
+    issue: str  # short machine-readable code, e.g. "missing_values"
+    severity: str  # "info" | "warning" | "critical"
+    message: str  # human-readable explanation
     affected_rows: int = 0
 
 
@@ -49,7 +49,7 @@ class DataProfile:
     duplicate_row_count: int
     columns: list[ColumnProfile]
     warnings: list[DataQualityWarning]
-    profiled_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    profiled_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @property
     def has_critical_warnings(self) -> bool:
@@ -180,7 +180,9 @@ class DataProfiler:
                     profile_row.max = float(numeric_series.max())
                     profile_row.mean = round(float(numeric_series.mean()), 4)
                     profile_row.std = round(float(numeric_series.std() or 0.0), 4)
-                    looks_like_money_field = any(w in str(col).lower() for w in ("price", "amount", "revenue", "cost", "total"))
+                    looks_like_money_field = any(
+                        w in str(col).lower() for w in ("price", "amount", "revenue", "cost", "total")
+                    )
                     if looks_like_money_field and (numeric_series < 0).any():
                         neg_count = int((numeric_series < 0).sum())
                         warnings.append(
