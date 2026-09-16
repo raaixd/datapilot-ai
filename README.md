@@ -33,6 +33,7 @@ both gaps:
 
 ## Table of contents
 
+- [Visual Tour & Walkthrough](#visual-tour--walkthrough)
 - [Features](#features)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
@@ -129,6 +130,50 @@ charts, live Anthropic API calls, the DuckDB backend option, and
 pydantic-based HTTP validation. These are complete, syntax-checked code,
 calling into a core that IS tested -- but verify them yourself with
 `pip install -r requirements.txt` before presenting or relying on them.
+
+## Visual Tour & Walkthrough
+
+Below is an end-to-end visual walkthrough demonstrating the DataPilot AI application running in real-time, from startup and dataset ingestion to natural-language querying, interactive visualizations, and deterministic SQL execution auditability.
+
+### 1. Main Dashboard & Workspace
+When launching the application (`python -m streamlit run frontend/streamlit_app.py`), users are greeted by a sleek Hermes-inspired dark SaaS workspace featuring active session indicators, one-click demo data loaders, and an intuitive analytical prompt bar.
+
+![Main Dashboard](docs/screenshots/dashboard.png)
+*Figure 1: Main DataPilot AI dashboard showcasing the dark-mode aesthetic, multi-provider model selector, and instant sample data actions.*
+
+---
+
+### 2. Automated Dataset Ingestion & Diagnostics
+Loading or uploading data (CSV, XLSX, or ZIP archives) instantly triggers automatic schema profiling. The system extracts row counts, column types, missing value percentages, and renders an interactive data preview table.
+
+![Dataset Overview](docs/screenshots/dataset-overview.png)
+*Figure 2: Dataset overview diagnostic card showing schema discovery, data quality health checks, and sample tabular preview.*
+
+---
+
+### 3. Natural-Language Business Analytics
+Users can ask complex business questions in plain English (e.g. *"Which product categories generated the highest total revenue?"*). DataPilot AI validates the scope, executes safe read-only SQL, and computes exact metrics alongside structured textual summaries.
+
+![Revenue by Category](docs/screenshots/revenue-by-category.png)
+*Figure 3: Natural language query results answering revenue by product category with ranked figures and plain-language analytical insights.*
+
+---
+
+### 4. Dynamic Interactive Visualizations
+Visual trends and comparisons (such as *"Show the monthly revenue trend."*) are automatically identified by the planning engine and plotted with responsive, interactive dark-themed Plotly charts.
+
+![Monthly Revenue Trend](docs/screenshots/monthly-revenue-trend.png)
+*Figure 4: Automated time-series line chart rendering monthly revenue progression with interactive hover tooltips.*
+
+---
+
+### 5. Transparent SQL Generation & Audit Trail
+Every calculation is 100% auditable. Users can expand the execution inspector to examine the exact generated SQL query, timing benchmarks, execution plan, and underlying raw result set.
+
+![SQL Query & Trace](docs/screenshots/sql-query.png)
+*Figure 5: Inspectable, deterministic SQL query view with safety verification badge, row counts, and execution metrics.*
+
+---
 
 ## Architecture
 
