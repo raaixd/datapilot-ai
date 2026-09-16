@@ -22,8 +22,9 @@ plotly>=5.20
 # Testing (tests/, eval/):
 pytest>=8.0
 
-# Optional: real LLM provider (only needed if LLM_PROVIDER=anthropic)
+# Optional: real LLM provider (only needed if LLM_PROVIDER=anthropic or groq)
 anthropic>=0.25
+openai>=1.0
 
 # Optional: swap DATABASE_BACKEND=duckdb instead of the default sqlite
 # duckdb>=0.10
