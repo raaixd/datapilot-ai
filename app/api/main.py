@@ -29,14 +29,18 @@ from __future__ import annotations
 
 import io
 import logging
+import time
+import uuid
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.schemas import DataQualityWarningOut, HealthResponse, QueryRequest, QueryResponse, UploadResponse
+from app.api.routers import analyses, datasets, projects, reports, system
+from app.api.schemas import DataQualityWarningOut, QueryRequest, QueryResponse, UploadResponse
 from app.api.session_manager import SessionManager, SessionNotFoundError
 from app.core.config import get_settings
 from app.core.logging_config import configure_logging
+from app.core.observability import get_metrics_collector, setup_observability
 from app.data.loader import (
     MissingOptionalDependencyError,
     UnsupportedFileTypeError,
@@ -50,13 +54,68 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="VERIDEX",
-    version="0.4.0",
+    version="2.0.0",
     description="Cloud-native natural-language business analytics over tabular datasets. "
     "Supports single CSV/Excel and multi-table ZIP archives with session isolation.",
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 _settings = get_settings()
+setup_observability(_settings)
+
+
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    start_time = time.perf_counter()
+    collector = get_metrics_collector()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        response.headers["X-Request-ID"] = request_id
+        collector.record_request(
+            path=request.url.path,
+            method=request.method,
+            status_code=response.status_code,
+            latency_ms=duration_ms,
+        )
+        logger.info(
+            "Request %s %s %d (%.2f ms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
+        return response
+    except Exception as exc:
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        collector.record_request(
+            path=request.url.path,
+            method=request.method,
+            status_code=500,
+            latency_ms=duration_ms,
+        )
+        logger.exception(
+            "Unhandled server error during request %s %s: %s",
+            request.method,
+            request.url.path,
+            exc,
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "duration_ms": round(duration_ms, 2),
+                "error": str(exc),
+            },
+        )
+        raise
 
 try:
     from app.llm.factory import build_llm_client
@@ -71,6 +130,23 @@ except Exception:
 
 _sessions = SessionManager(_llm, _settings, ttl_seconds=_settings.session_ttl_minutes * 60)
 _profiler = DataProfiler()
+
+# Connect system session counter
+system.set_active_sessions_getter(lambda: _sessions.active_session_count())
+
+# Mount REST API routers
+app.include_router(projects.router)
+app.include_router(datasets.router)
+app.include_router(analyses.router)
+app.include_router(reports.router)
+app.include_router(system.router)
+
+# Mount REST API routers under /api/v1
+app.include_router(projects.router, prefix="/api/v1")
+app.include_router(datasets.router, prefix="/api/v1")
+app.include_router(analyses.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
+app.include_router(system.router, prefix="/api/v1")
 
 
 @app.post("/upload", response_model=UploadResponse)
@@ -217,15 +293,3 @@ async def end_session(session_id: str):
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' was not found.")
     return {"status": "deleted", "session_id": session_id}
 
-
-@app.get("/health", response_model=HealthResponse)
-async def health():
-    """Confirms the API is up and reports its actual configuration (LLM
-    provider, database backend, active session count) -- check this first
-    if a client can't get a sensible response from /query."""
-    return HealthResponse(
-        status="healthy",
-        llm_provider=_settings.llm_provider,
-        database_backend=_settings.database_backend,
-        active_sessions=_sessions.active_session_count(),
-    )

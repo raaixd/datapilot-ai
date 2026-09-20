@@ -1,19 +1,5 @@
 """
-HTTP-facing schemas.
-
-Pydantic is used here, and only here -- the analysis core (profiler,
-validator, planner, orchestrator) is pure dataclasses/stdlib so it has no
-dependency on the web framework (see app/agents/planner.py's
-PlanValidationError docstring for why: no network access to install
-`pydantic` in this project's dev environment). This file requires
-`pydantic` to import; see the NOTE in app/api/main.py about what has and
-hasn't been executed in this sandbox.
-
-`AnalysisPlanModel` mirrors app.agents.planner.AnalysisPlan field-for-field
-with pydantic validators, so that when this API layer IS run with pydantic
-installed, a plan crossing the HTTP boundary gets a second, independent
-validation pass (on top of AnalysisPlan.validate(), which already runs
-inside the tested core) -- belt and suspenders, not a replacement.
+Legacy HTTP-facing schemas.
 """
 
 from __future__ import annotations
@@ -25,7 +11,7 @@ from app.agents.planner import VALID_AGGREGATIONS, VALID_CHART_TYPES, VALID_INTE
 
 class QueryRequest(BaseModel):
     question: str
-    session_id: str  # from POST /upload's response -- see app/api/session_manager.py
+    session_id: str
 
 
 class UploadResponse(BaseModel):
@@ -119,18 +105,9 @@ class QueryResponse(BaseModel):
     follow_up_questions: list[str] = []
     data_quality_warnings: list[DataQualityWarningOut] = []
     error: str | None = None
-    llm_provider: str | None = None  # e.g. "mock" -- never implies a live model ran when it didn't
-    scope: str = (
-        "in_scope"  # "in_scope" | "ambiguous" | "out_of_scope" | "unsafe" -- see app/agents/scope_classifier.py
-    )
+    llm_provider: str | None = None
+    scope: str = "in_scope"
     clarification_options: list[str] = []
     notes: list[str] = []
     retry_count: int = 0
     correction_history: list[dict] = []
-
-
-class HealthResponse(BaseModel):
-    status: str
-    llm_provider: str
-    database_backend: str
-    active_sessions: int

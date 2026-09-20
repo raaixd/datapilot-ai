@@ -68,16 +68,20 @@ def _build_single_provider(provider: str, settings: Settings) -> LLMClient:
     )
 
 
-def build_llm_client(settings: Settings) -> LLMClient:
+def build_llm_client(settings: Settings | None = None) -> LLMClient:
     """Build a single provider client using settings.llm_provider.
 
     Preserved for backward compatibility with tests, eval harness, and CLI.
     The FastAPI backend should use build_llm_client_with_fallback() instead.
     """
+    if settings is None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
     return _build_single_provider(settings.llm_provider, settings)
 
 
-def build_llm_client_with_fallback(settings: Settings) -> LLMClient:
+def build_llm_client_with_fallback(settings: Settings | None = None) -> LLMClient:
     """Build a FallbackLLMClient for production use.
 
     Uses settings.primary_llm_provider as the primary and
@@ -89,6 +93,11 @@ def build_llm_client_with_fallback(settings: Settings) -> LLMClient:
         PRIMARY_LLM_PROVIDER=gemini
         FALLBACK_LLM_PROVIDER=groq
     """
+    if settings is None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
+
     primary_name = settings.primary_llm_provider
     fallback_name = settings.fallback_llm_provider
 

@@ -47,12 +47,14 @@ class MissingOptionalDependencyError(ImportError):
 def load_tabular_file(file_or_path, filename: str) -> pd.DataFrame:
     """Load a CSV or Excel file into a DataFrame.
 
-    `file_or_path` may be a path/str, or any file-like object (e.g. an
-    uploaded file's stream) -- pandas accepts both for read_csv/read_excel.
-    `filename` is used only to determine the format from its extension, so
-    this works the same whether given a real path or an in-memory upload
-    that only has a name attached.
+    `file_or_path` may be a path/str, bytes, or any file-like object.
+    `filename` is used only to determine the format from its extension.
     """
+    if isinstance(file_or_path, (bytes, bytearray)):
+        import io
+
+        file_or_path = io.BytesIO(file_or_path)
+
     suffix = Path(filename).suffix.lower()
 
     if suffix == ".csv":

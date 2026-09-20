@@ -21,6 +21,7 @@ plotly>=5.20
 
 # Testing (tests/, eval/):
 pytest>=8.0
+httpx>=0.27
 
 # ============================================================
 # LLM Providers

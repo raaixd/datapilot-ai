@@ -129,6 +129,9 @@ class Settings:
     # Observability                                                       #
     # ------------------------------------------------------------------ #
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
+    cloudwatch_enabled: bool = field(
+        default_factory=lambda: os.getenv("CLOUDWATCH_ENABLED", "false").lower() in ("true", "1", "yes")
+    )
     # CloudWatch log group for API service (used in production only)
     cloudwatch_log_group: str = field(
         default_factory=lambda: os.getenv("CLOUDWATCH_LOG_GROUP", "/veridex/api")
