@@ -15,7 +15,6 @@ import pytest
 from app.llm.fallback_client import FallbackLLMClient
 from app.llm.mock_client import MockLLMClient
 
-
 # ---------------------------------------------------------------------------
 # FallbackLLMClient tests
 # ---------------------------------------------------------------------------
@@ -175,8 +174,9 @@ class TestGeminiClientConstruction:
     def test_complete_raises_import_error_without_sdk(self, monkeypatch):
         """When google-generativeai is not installed, complete() raises ImportError
         with a clear installation instruction (not a raw import stack trace)."""
-        from app.llm.gemini_client import GeminiLLMClient
         import builtins
+
+        from app.llm.gemini_client import GeminiLLMClient
         real_import = builtins.__import__
 
         def _mock_import(name, *args, **kwargs):
@@ -210,9 +210,8 @@ class TestFactory:
         assert isinstance(client, MockLLMClient)
 
     def test_build_llm_client_unknown_provider_raises(self):
+
         from app.core.config import Settings
-        from app.llm.factory import build_llm_client
-        import os
 
         # Temporarily override LLM_PROVIDER via environment isn't possible with frozen
         # dataclass; test the factory directly.
@@ -234,12 +233,12 @@ class TestFactory:
 
     def test_build_with_fallback_same_primary_and_fallback_returns_single(self):
         """When primary == fallback, no wrapping needed."""
-        from app.llm.factory import build_llm_client_with_fallback
-        from app.llm.mock_client import MockLLMClient
-
         # Simulate: PRIMARY_LLM_PROVIDER=mock, FALLBACK_LLM_PROVIDER=mock
         import dataclasses
+
         from app.core.config import Settings
+        from app.llm.factory import build_llm_client_with_fallback
+        from app.llm.mock_client import MockLLMClient
         settings = dataclasses.replace(
             Settings(),
             primary_llm_provider="mock",

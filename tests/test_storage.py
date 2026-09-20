@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.storage.base import StorageBackend, raw_key, profile_key, report_key
-from app.storage.local_storage import LocalStorageBackend
+from app.storage.base import StorageBackend, profile_key, raw_key, report_key
 from app.storage.factory import build_storage_backend
-
+from app.storage.local_storage import LocalStorageBackend
 
 # ---------------------------------------------------------------------------
 # Fixtures

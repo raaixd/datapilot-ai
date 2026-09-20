@@ -8,7 +8,6 @@ of currency, identifiers, percentages, dates, categoricals, and unknown types.
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from app.data.semantic_schema import SemanticSchemaGenerator
 
