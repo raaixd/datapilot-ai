@@ -25,12 +25,12 @@ resource "aws_lambda_function" "dataset_processor" {
 
   environment {
     variables = {
-      LOCAL_MODE     = "false"
-      AWS_REGION     = var.aws_region
-      AWS_S3_BUCKET  = aws_s3_bucket.veridex_data.id
-      DATABASE_URL   = "postgresql+psycopg://${var.db_username}:${random_password.db_password.result}@${aws_db_instance.veridex_postgres.endpoint}/${var.db_name}"
-      LOG_LEVEL      = "INFO"
-      LOG_FORMAT     = "json"
+      LOCAL_MODE    = "false"
+      AWS_REGION    = var.aws_region
+      AWS_S3_BUCKET = aws_s3_bucket.veridex_data.id
+      DATABASE_URL  = "postgresql+psycopg://${var.db_username}:${random_password.db_password.result}@${aws_db_instance.veridex_postgres.endpoint}/${var.db_name}"
+      LOG_LEVEL     = "INFO"
+      LOG_FORMAT    = "json"
     }
   }
 

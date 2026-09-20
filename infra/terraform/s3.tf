@@ -7,7 +7,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "veridex_data" {
-  bucket        = locals.bucket_name
+  bucket        = local.bucket_name
   force_destroy = false
 }
 

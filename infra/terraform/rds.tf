@@ -59,9 +59,9 @@ resource "aws_db_instance" "veridex_postgres" {
   vpc_security_group_ids = [aws_security_group.rds.id]
 
   # Maintenance & backup windows
-  backup_retention_period = 7
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "Sun:04:30-Sun:05:30"
+  backup_retention_period    = 7
+  backup_window              = "03:00-04:00"
+  maintenance_window         = "Sun:04:30-Sun:05:30"
   auto_minor_version_upgrade = true
 
   tags = {
