@@ -19,8 +19,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import time
+from pathlib import Path
 from typing import Any
+
+# Ensure repository root is on sys.path so 'app' is importable when running `streamlit run frontend/streamlit_app.py`
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 import streamlit as st
