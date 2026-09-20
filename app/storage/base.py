@@ -24,7 +24,7 @@ KEY DESIGN DECISIONS:
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -80,6 +80,31 @@ class StorageBackend(Protocol):
     def delete_object(self, key: str) -> None:
         """Delete the object at key if it exists. Idempotent — no error if
         the key does not exist."""
+        ...
+
+    def list_objects(self, prefix: str = "") -> list[str]:
+        """List all object keys matching the given prefix.
+
+        Args:
+            prefix: Storage key prefix filter (e.g. "raw/proj-123/").
+
+        Returns:
+            A list of object key strings.
+        """
+        ...
+
+    def get_object_metadata(self, key: str) -> dict[str, Any]:
+        """Retrieve metadata for the object at the given key.
+
+        Args:
+            key: Storage key of the object.
+
+        Returns:
+            Dictionary containing object metadata (size_bytes, content_type, last_modified).
+
+        Raises:
+            FileNotFoundError: if the key does not exist.
+        """
         ...
 
 
