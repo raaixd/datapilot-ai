@@ -18,7 +18,7 @@ def render_pdf_report(result: AnalysisResult, output_path: str) -> str:
     doc = SimpleDocTemplate(output_path, pagesize=LETTER)
     styles = getSampleStyleSheet()
     story = [
-        Paragraph("DataPilot AI &mdash; Analysis Report", styles["Title"]),
+        Paragraph("VERIDEX &mdash; Analysis Report", styles["Title"]),
         Paragraph(datetime.now(UTC).strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
         Spacer(1, 0.2 * inch),
         Paragraph("Question", styles["Heading2"]),

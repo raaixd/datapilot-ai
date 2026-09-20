@@ -1,1 +1,1 @@
-"""Storage abstraction layer for DataPilot AI."""
+"""Storage abstraction layer for VERIDEX."""

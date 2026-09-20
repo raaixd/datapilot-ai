@@ -8,5 +8,5 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class for all DataPilot metadata ORM models."""
+    """Base class for all VERIDEX metadata ORM models."""
     pass

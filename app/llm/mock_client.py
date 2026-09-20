@@ -86,9 +86,11 @@ def _parse_schema_block(schema_description: str) -> dict[str, dict]:
             current_table = line[len("TABLE ") :].split(" ")[0].strip(":")
             tables[current_table] = {"columns": [], "samples": {}}
         elif line.startswith("- ") and current_table:
-            m = re.match(r"-\s*(\w+)\s*\((\w+)\)(?:\s*values:\s*\[(.*)\])?", line)
+            m = re.match(
+                r"-\s*(\w+)\s*\(([^,\)]+)(?:[^\)]*)\)(?:\s*\[[^\]]*\])?(?:\s*values:\s*\[(.*)\])?", line
+            )
             if m:
-                col_name, col_type, values_blob = m.group(1), m.group(2), m.group(3)
+                col_name, col_type, values_blob = m.group(1), m.group(2).strip(), m.group(3)
                 tables[current_table]["columns"].append((col_name, col_type))
                 if values_blob:
                     tables[current_table]["samples"][col_name] = [

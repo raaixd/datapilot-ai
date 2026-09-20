@@ -29,14 +29,14 @@ from app.llm.factory import build_llm_client
 from app.reports.markdown_report import render_markdown_report
 from app.reports.pdf_report import render_pdf_report
 from app.visualization.charts import build_chart
-from frontend.api_client import DataPilotApiClient
+from frontend.api_client import VeridexApiClient
 
 configure_logging()
 logger = logging.getLogger(__name__)
 
 st.set_page_config(
-    page_title="DataPilot AI",
-    page_icon="\u25c8",
+    page_title="VERIDEX",
+    page_icon="◈",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -352,8 +352,8 @@ st.markdown(
     f"""
     <div class="dp-header">
         <div class="dp-brand">
-            <span class="dp-brand-logo">\u25c8</span>
-            <span class="dp-brand-title">DataPilot AI</span>
+            <span class="dp-brand-logo">◈</span>
+            <span class="dp-brand-title">VERIDEX</span>
         </div>
         <div class="dp-header-badges">
             <span class="dp-pill"><span class="dp-dot"></span> {mode_label}</span>
@@ -461,7 +461,7 @@ with st.sidebar:
                 "API Base URL",
                 value=st.session_state.api_base_url,
             )
-            api_client = DataPilotApiClient(base_url=st.session_state.api_base_url)
+            api_client = VeridexApiClient(base_url=st.session_state.api_base_url)
             try:
                 h = api_client.health()
                 st.caption(f"Backend connected ({h.get('status')})")
@@ -625,7 +625,7 @@ else:
         with st.spinner("Generating and verifying query..."):
             if st.session_state.api_mode:
                 try:
-                    client = DataPilotApiClient(base_url=st.session_state.api_base_url)
+                    client = VeridexApiClient(base_url=st.session_state.api_base_url)
                     # Use existing session or create on upload
                     sess_id = st.session_state.api_session_id or "default"
                     api_resp = client.query(current_q, session_id=sess_id)
@@ -721,7 +721,7 @@ else:
                     st.download_button(
                         "Download CSV",
                         res_df.to_csv(index=False),
-                        file_name="datapilot_results.csv",
+                        file_name="veridex_results.csv",
                         mime="text/csv",
                     )
                 else:
@@ -751,10 +751,10 @@ else:
                 report_md = render_markdown_report(result)
                 col_e1, col_e2 = st.columns(2)
                 with col_e1:
-                    st.download_button("Download Markdown Report", report_md, file_name="datapilot_report.md")
+                    st.download_button("Download Markdown Report", report_md, file_name="veridex_report.md")
                 with col_e2:
                     try:
-                        fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="datapilot_report_")
+                        fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="veridex_report_")
                         os.close(fd)
                         try:
                             render_pdf_report(result, pdf_path)
@@ -762,7 +762,7 @@ else:
                                 st.download_button(
                                     "Download PDF Report",
                                     f.read(),
-                                    file_name="datapilot_report.pdf",
+                                    file_name="veridex_report.pdf",
                                     mime="application/pdf",
                                 )
                         finally:

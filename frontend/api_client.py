@@ -1,5 +1,5 @@
 """
-HTTP Client for communicating with the DataPilot AI FastAPI backend.
+HTTP Client for communicating with the VERIDEX FastAPI backend.
 
 Used by frontend/streamlit_app.py when running in 'API Mode' or when
 API_BASE_URL is configured, establishing clean architectural separation between
@@ -26,8 +26,8 @@ class APIClientError(Exception):
         self.detail = detail
 
 
-class DataPilotApiClient:
-    """Synchronous HTTP client for DataPilot AI FastAPI backend."""
+class VeridexApiClient:
+    """Synchronous HTTP client for VERIDEX FastAPI backend."""
 
     def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
@@ -57,7 +57,7 @@ class DataPilotApiClient:
             raise APIClientError(exc.code, str(detail)) from exc
         except urllib.error.URLError as exc:
             logger.warning("Could not connect to API at %s: %s", url, exc.reason)
-            raise ConnectionError(f"Cannot reach DataPilot API at {self.base_url}: {exc.reason}") from exc
+            raise ConnectionError(f"Cannot reach VERIDEX API at {self.base_url}: {exc.reason}") from exc
 
     def health(self) -> dict[str, Any]:
         return self._request("GET", "/health")
@@ -68,7 +68,7 @@ class DataPilotApiClient:
         filename: str,
         session_id: str | None = None,
     ) -> dict[str, Any]:
-        boundary = "----WebKitFormBoundaryDataPilotUpload"
+        boundary = "----WebKitFormBoundaryVeridexUpload"
         body = io.BytesIO()
 
         if session_id:
@@ -95,3 +95,7 @@ class DataPilotApiClient:
 
     def end_session(self, session_id: str) -> dict[str, Any]:
         return self._request("DELETE", f"/session/{session_id}")
+
+
+# Backward compatibility alias
+DataPilotApiClient = VeridexApiClient

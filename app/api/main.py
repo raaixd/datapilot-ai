@@ -49,9 +49,9 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="DataPilot AI",
+    title="VERIDEX",
     version="0.4.0",
-    description="Natural-language business analytics over uploaded tabular datasets. "
+    description="Cloud-native natural-language business analytics over tabular datasets. "
     "Supports single CSV/Excel and multi-table ZIP archives with session isolation.",
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

@@ -27,7 +27,7 @@ def _failure_result():
 class TestMarkdownReport(unittest.TestCase):
     def test_success_report_contains_key_sections(self):
         report = render_markdown_report(_success_result())
-        self.assertIn("# DataPilot AI", report)
+        self.assertIn("# VERIDEX", report)
         self.assertIn("## Executive Summary", report)
         self.assertIn("SELECT region, SUM(revenue)", report)
         self.assertIn("South", report)

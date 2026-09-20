@@ -64,16 +64,24 @@ class Settings:
     database_backend: str = field(
         default_factory=lambda: os.getenv("DATABASE_BACKEND", "sqlite")
     )  # "sqlite" or "duckdb"
-    database_path: str = field(default_factory=lambda: os.getenv("DATABASE_PATH", "data/datapilot.db"))
+    database_path: str = field(
+        default_factory=lambda: os.getenv(
+            "DATABASE_PATH",
+            "data/datapilot.db" if os.path.exists("data/datapilot.db") else "data/veridex.db",
+        )
+    )
 
     # ------------------------------------------------------------------ #
     # Application metadata database (PostgreSQL/RDS or local SQLite)      #
     # ------------------------------------------------------------------ #
-    # For local development: sqlite:///data/datapilot_meta.db (default)   #
-    # For production: postgresql://user:pass@rds-host:5432/datapilot      #
+    # For local development: sqlite:///data/veridex_meta.db (default)     #
+    # For production: postgresql://user:pass@rds-host:5432/veridex        #
     database_url: str = field(
         default_factory=lambda: os.getenv(
-            "DATABASE_URL", "sqlite:///data/datapilot_meta.db"
+            "DATABASE_URL",
+            "sqlite:///data/datapilot_meta.db"
+            if os.path.exists("data/datapilot_meta.db")
+            else "sqlite:///data/veridex_meta.db",
         )
     )
 
@@ -123,7 +131,7 @@ class Settings:
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
     # CloudWatch log group for API service (used in production only)
     cloudwatch_log_group: str = field(
-        default_factory=lambda: os.getenv("CLOUDWATCH_LOG_GROUP", "/datapilot/api")
+        default_factory=lambda: os.getenv("CLOUDWATCH_LOG_GROUP", "/veridex/api")
     )
 
 

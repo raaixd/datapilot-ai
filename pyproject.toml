@@ -1,7 +1,7 @@
 [project]
-name = "datapilot-ai"
-version = "0.1.0"
-description = "DataPilot AI -- an intermediate-level natural-language business analytics assistant"
+name = "veridex"
+version = "0.4.0"
+description = "VERIDEX -- Cloud-Native AI Data Analyst Platform"
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }

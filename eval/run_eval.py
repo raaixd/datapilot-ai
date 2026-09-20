@@ -195,7 +195,7 @@ def run() -> int:
     passed = sum(1 for r in results if r["passed"])
     failed_cases = [r for r in results if not r["passed"]]
 
-    print(f"DataPilot AI evaluation -- {total} cases across {len(_DATASET_FILES)} datasets, {elapsed:.2f}s\n")
+    print(f"VERIDEX evaluation -- {total} cases across {len(_DATASET_FILES)} datasets, {elapsed:.2f}s\n")
     for category, cases in sorted(by_category.items()):
         cat_passed = sum(1 for c in cases if c["passed"])
         print(f"[{category}] {cat_passed}/{len(cases)} passed")

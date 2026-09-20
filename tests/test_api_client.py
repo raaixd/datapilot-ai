@@ -6,12 +6,15 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from frontend.api_client import DataPilotApiClient
+from frontend.api_client import DataPilotApiClient, VeridexApiClient
 
 
 class TestApiClient(unittest.TestCase):
     def setUp(self):
-        self.client = DataPilotApiClient(base_url="http://localhost:8000")
+        self.client = VeridexApiClient(base_url="http://localhost:8000")
+
+    def test_backward_compatibility_alias(self):
+        self.assertIs(DataPilotApiClient, VeridexApiClient)
 
     @patch("urllib.request.urlopen")
     def test_health_check_success(self, mock_urlopen):
@@ -56,7 +59,7 @@ class TestApiClient(unittest.TestCase):
         mock_urlopen.side_effect = urllib.error.URLError("Connection refused")
         with self.assertRaises(ConnectionError) as ctx:
             self.client.health()
-        self.assertIn("Cannot reach DataPilot API", str(ctx.exception))
+        self.assertIn("Cannot reach VERIDEX API", str(ctx.exception))
 
 
 if __name__ == "__main__":

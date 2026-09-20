@@ -1,5 +1,5 @@
 """
-SQLAlchemy ORM models for DataPilot AI metadata persistence.
+SQLAlchemy ORM models for VERIDEX metadata persistence.
 
 Covers:
   - Projects

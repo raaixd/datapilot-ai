@@ -21,7 +21,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import time
 from dataclasses import dataclass, field
+from typing import Any
 
 import pandas as pd
 
@@ -35,8 +38,44 @@ from app.data.database import AnalyticalDatabase
 from app.data.profiler import DataProfile, DataQualityWarning
 from app.llm.base import LLMClient
 from app.llm.prompts import INSIGHT_SYSTEM_PROMPT, build_insight_user_prompt
+from app.visualization.grounded_charts import validate_and_select_chart
 
 logger = logging.getLogger(__name__)
+
+
+def classify_db_error(error: Exception | str) -> str:
+    """Classify a database execution error into an actionable category.
+
+    Categories:
+      - 'no_such_column'
+      - 'no_such_table'
+      - 'syntax_error'
+      - 'type_mismatch'
+      - 'aggregation_error'
+      - 'unknown_error'
+    """
+    msg = str(error).lower()
+    if any(k in msg for k in ("no such column", "has no column", "unknown column", "referenced column")) or (
+        "column" in msg and any(k in msg for k in ("not found", "does not exist", "no such", "unknown", "missing"))
+    ):
+        return "no_such_column"
+    if any(k in msg for k in ("no such table", "relation", "doesn't exist")) or (
+        "table" in msg and any(k in msg for k in ("not found", "does not exist", "no such"))
+    ):
+        return "no_such_table"
+    if any(k in msg for k in ("group by", "misuse of aggregate", "aggregate function", "must appear in the group by")):
+        return "aggregation_error"
+    if any(k in msg for k in ("syntax error", "parser error", "parse error", "near \"", "unexpected")):
+        return "syntax_error"
+    if any(k in msg for k in ("mismatch", "conversion error", "incompatible types", "cannot cast", "could not convert")):
+        return "type_mismatch"
+    return "unknown_error"
+
+
+def _clean_insight(text: str) -> str:
+    """Strip any internal reasoning / chain-of-thought blocks so user only sees factual explanation."""
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    return cleaned.strip()
 
 
 @dataclass
@@ -65,6 +104,10 @@ class AnalysisResult:
     # normal users; only surfaced by a caller when Settings.debug_mode is True
     retry_count: int = 0
     correction_history: list[dict] = field(default_factory=list)
+    sql_error_type: str | None = None
+    sql_execution_time_ms: int = 0
+    llm_latency_ms: int = 0
+    total_latency_ms: int = 0
 
 
 class Orchestrator:
@@ -82,11 +125,25 @@ class Orchestrator:
         self._max_result_rows = max_result_rows
         self._llm_provider = (settings or get_settings()).llm_provider
 
-    def analyze(self, question: str, data_profile: DataProfile | None = None) -> AnalysisResult:
+    def analyze(
+        self,
+        question: str,
+        data_profile: DataProfile | None = None,
+        semantic_schema: Any = None,
+    ) -> AnalysisResult:
+        start_time = time.perf_counter()
+        total_llm_time_ms = 0
+        total_sql_time_ms = 0
+
         question = (question or "").strip()
         logger.info("analyze() called: question=%r", question)
         if not question:
-            return self._fail(question, "Question is empty.", scope="ambiguous")
+            return self._fail(
+                question,
+                "Question is empty.",
+                scope="ambiguous",
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
+            )
 
         schema = self._db.describe_schema()
         if not schema:
@@ -94,6 +151,7 @@ class Orchestrator:
                 question,
                 "No dataset has been loaded. Upload a CSV or Excel file before asking a question.",
                 scope="out_of_scope",
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
         warnings = list(data_profile.warnings) if data_profile else []
@@ -108,10 +166,22 @@ class Orchestrator:
 
         if scope_result.scope == "unsafe":
             logger.warning("Unsafe question blocked before planning: %r", question)
-            return self._fail(question, scope_result.user_facing_message, warnings=warnings, scope="unsafe")
+            return self._fail(
+                question,
+                scope_result.user_facing_message,
+                warnings=warnings,
+                scope="unsafe",
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
+            )
 
         if scope_result.scope == "out_of_scope":
-            return self._fail(question, scope_result.user_facing_message, warnings=warnings, scope="out_of_scope")
+            return self._fail(
+                question,
+                scope_result.user_facing_message,
+                warnings=warnings,
+                scope="out_of_scope",
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
+            )
 
         if scope_result.scope == "ambiguous":
             return self._fail(
@@ -120,16 +190,17 @@ class Orchestrator:
                 warnings=warnings,
                 scope="ambiguous",
                 clarification_options=scope_result.clarification_options,
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
         # scope_result.scope == "in_scope" from here on: this question has
         # genuine overlap with the loaded schema. Proceed to planning as
         # before, but if planning still can't resolve a concrete plan, that
         # failure is now known to be an "ambiguous" one (has schema overlap,
-        # just not specific enough) rather than a generic/misleading error --
-        # this is the fix for questions that mention dataset terms but the
-        # planner still can't build an answerable plan from them.
-        plan = self._planner.plan(question, schema)
+        # just not specific enough) rather than a generic/misleading error.
+        t_llm0 = time.perf_counter()
+        plan = self._planner.plan(question, schema, semantic_schema=semantic_schema)
+        total_llm_time_ms += int((time.perf_counter() - t_llm0) * 1000)
 
         if plan.intent == "unsupported" or (plan.clarification_needed and not plan.is_answerable):
             logger.info("In-scope question could not be resolved to a plan: %s", plan.clarification_needed)
@@ -142,13 +213,21 @@ class Orchestrator:
                 warnings=warnings,
                 scope="ambiguous",
                 clarification_options=options,
+                llm_latency_ms=total_llm_time_ms,
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
         if plan.is_profile_only:
-            return self._answer_from_profile(question, plan, data_profile, warnings, scope_result)
+            res = self._answer_from_profile(question, plan, data_profile, warnings, scope_result)
+            res.llm_latency_ms = total_llm_time_ms
+            res.total_latency_ms = int((time.perf_counter() - start_time) * 1000)
+            return res
 
         if plan.intent == "anomaly_detection":
-            return self._answer_anomaly_detection(question, plan, schema, data_profile, warnings, scope_result)
+            res = self._answer_anomaly_detection(question, plan, schema, data_profile, warnings, scope_result)
+            res.llm_latency_ms = total_llm_time_ms
+            res.total_latency_ms = int((time.perf_counter() - start_time) * 1000)
+            return res
 
         if not plan.is_answerable:
             return self._fail(
@@ -157,9 +236,14 @@ class Orchestrator:
                 plan=plan,
                 warnings=warnings,
                 scope="ambiguous",
+                llm_latency_ms=total_llm_time_ms,
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
-        raw_sql = self._sql_generator.generate(plan, schema)
+        t_llm0 = time.perf_counter()
+        raw_sql = self._sql_generator.generate(plan, schema, semantic_schema=semantic_schema)
+        total_llm_time_ms += int((time.perf_counter() - t_llm0) * 1000)
+
         validation = validate_sql(raw_sql, schema, max_result_rows=self._max_result_rows)
         if not validation.is_valid:
             logger.warning("Generated SQL failed validation: %s", validation.errors)
@@ -172,6 +256,8 @@ class Orchestrator:
                 warnings=warnings,
                 scope="in_scope",
                 debug_info="SQL validation errors: " + "; ".join(validation.errors),
+                llm_latency_ms=total_llm_time_ms,
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
         current_sql = validation.safe_sql
@@ -180,27 +266,41 @@ class Orchestrator:
         retry_count = 0
         correction_history: list[dict] = []
         last_error = None
+        sql_error_type = None
 
         while True:
+            t_sql0 = time.perf_counter()
             try:
                 result_df = self._db.query(current_sql, max_rows=self._max_result_rows)
+                total_sql_time_ms += int((time.perf_counter() - t_sql0) * 1000)
                 break
             except Exception as exc:  # surfaced, never swallowed
+                total_sql_time_ms += int((time.perf_counter() - t_sql0) * 1000)
                 last_error = exc
-                logger.warning("Query execution failed (attempt %d): %s", retry_count + 1, exc)
-                correction_history.append({"attempt": retry_count + 1, "sql": current_sql, "error": str(exc)})
+                sql_error_type = classify_db_error(exc)
+                logger.warning("Query execution failed (attempt %d, type=%s): %s", retry_count + 1, sql_error_type, exc)
+                correction_history.append({
+                    "attempt": retry_count + 1,
+                    "sql": current_sql,
+                    "error": str(exc),
+                    "error_type": sql_error_type,
+                })
                 if retries_remaining <= 0:
                     break
                 retries_remaining -= 1
                 retry_count += 1
 
                 try:
+                    t_llm0 = time.perf_counter()
                     corrected_raw = self._sql_generator.correct(
                         failing_sql=current_sql,
                         error_message=str(exc),
                         schema=schema,
                         question=question,
+                        semantic_schema=semantic_schema,
+                        error_type=sql_error_type,
                     )
+                    total_llm_time_ms += int((time.perf_counter() - t_llm0) * 1000)
                 except Exception as gen_exc:
                     logger.warning("SQL correction generation failed: %s", gen_exc)
                     break
@@ -220,6 +320,10 @@ class Orchestrator:
                         debug_info="SQL correction validation errors: " + "; ".join(corrected_val.errors),
                         retry_count=retry_count,
                         correction_history=correction_history,
+                        sql_error_type=sql_error_type,
+                        sql_execution_time_ms=total_sql_time_ms,
+                        llm_latency_ms=total_llm_time_ms,
+                        total_latency_ms=int((time.perf_counter() - start_time) * 1000),
                     )
                 current_sql = corrected_val.safe_sql
                 validation = corrected_val
@@ -237,13 +341,42 @@ class Orchestrator:
                 debug_info=f"Query execution failed after {retry_count} retries: {last_error!r}",
                 retry_count=retry_count,
                 correction_history=correction_history,
+                sql_error_type=sql_error_type,
+                sql_execution_time_ms=total_sql_time_ms,
+                llm_latency_ms=total_llm_time_ms,
+                total_latency_ms=int((time.perf_counter() - start_time) * 1000),
             )
 
         metric_alias = plan.metric_alias or "value"
         metrics = compute_result_metrics(result_df, metric_alias, plan.dimension_column)
-        insight = self._narrate(question, validation.safe_sql, result_df, metrics)
+
+        is_empty_or_null = result_df.empty or (
+            len(result_df) == 1
+            and (
+                result_df.isna().all().all()
+                or (metric_alias in result_df.columns and pd.isna(result_df[metric_alias].iloc[0]))
+            )
+        )
+
+        if is_empty_or_null:
+            insight = "No matching records were found for this query in the dataset."
+        else:
+            t_llm0 = time.perf_counter()
+            insight = self._narrate(question, validation.safe_sql, result_df, metrics)
+            total_llm_time_ms += int((time.perf_counter() - t_llm0) * 1000)
+
         follow_ups = _default_follow_ups(plan)
         notes = [scope_result.unsupported_action_note] if scope_result.unsupported_action_note else []
+
+        # Grounded chart selection
+        chart_type = validate_and_select_chart(
+            plan.chart_type,
+            result_df,
+            dimension_col=plan.dimension_column,
+            metric_col=plan.metric_alias or plan.metric_column,
+        )
+
+        total_latency_ms = int((time.perf_counter() - start_time) * 1000)
 
         return AnalysisResult(
             question=question,
@@ -253,7 +386,7 @@ class Orchestrator:
             result_preview=result_df.head(20).to_dict(orient="records"),
             metrics=metrics,
             insight=insight,
-            chart_type=plan.chart_type,
+            chart_type=chart_type,
             data_quality_warnings=warnings,
             follow_up_questions=follow_ups,
             validation_warnings=validation.warnings,
@@ -262,6 +395,10 @@ class Orchestrator:
             notes=notes,
             retry_count=retry_count,
             correction_history=correction_history,
+            sql_error_type=sql_error_type,
+            sql_execution_time_ms=total_sql_time_ms,
+            llm_latency_ms=total_llm_time_ms,
+            total_latency_ms=total_latency_ms,
         )
 
     def _answer_from_profile(
@@ -412,9 +549,12 @@ class Orchestrator:
                 debug_info="Anomaly SQL validation errors: " + "; ".join(validation.errors),
             )
 
+        t_sql0 = time.perf_counter()
         try:
             result_df = self._db.query(validation.safe_sql, max_rows=self._max_result_rows)
+            sql_exec_ms = int((time.perf_counter() - t_sql0) * 1000)
         except Exception as exc:
+            sql_exec_ms = int((time.perf_counter() - t_sql0) * 1000)
             logger.exception("Anomaly-detection query execution failed")
             return self._fail(
                 question,
@@ -424,6 +564,8 @@ class Orchestrator:
                 warnings=warnings,
                 scope="in_scope",
                 debug_info=f"Query execution failed: {exc!r}",
+                sql_execution_time_ms=sql_exec_ms,
+                sql_error_type=classify_db_error(exc),
             )
 
         count = len(result_df)
@@ -458,21 +600,26 @@ class Orchestrator:
             llm_provider=self._llm_provider,
             scope="in_scope",
             notes=notes,
+            sql_execution_time_ms=sql_exec_ms,
         )
 
     def _fail(
         self,
-        question,
-        error,
-        plan=None,
-        sql=None,
-        warnings=None,
-        validation_warnings=None,
+        question: str,
+        error: str,
+        plan: AnalysisPlan | None = None,
+        sql: str | None = None,
+        warnings: list | None = None,
+        validation_warnings: list | None = None,
         scope: str = "out_of_scope",
         clarification_options: list[str] | None = None,
         debug_info: str | None = None,
         retry_count: int = 0,
         correction_history: list[dict] | None = None,
+        sql_error_type: str | None = None,
+        sql_execution_time_ms: int = 0,
+        llm_latency_ms: int = 0,
+        total_latency_ms: int = 0,
     ) -> AnalysisResult:
         return AnalysisResult(
             question=question,
@@ -488,6 +635,10 @@ class Orchestrator:
             debug_info=debug_info,
             retry_count=retry_count,
             correction_history=correction_history or [],
+            sql_error_type=sql_error_type,
+            sql_execution_time_ms=sql_execution_time_ms,
+            llm_latency_ms=llm_latency_ms,
+            total_latency_ms=total_latency_ms,
         )
 
     def _numeric_column_options(self, schema) -> list[str]:
@@ -501,7 +652,8 @@ class Orchestrator:
     def _narrate(self, question: str, sql: str, result_df: pd.DataFrame, metrics: dict) -> str:
         preview = "(no rows)" if result_df.empty else result_df.head(10).to_string(index=False)
         user_prompt = build_insight_user_prompt(question, sql, preview, json.dumps(metrics))
-        return self._llm.complete(INSIGHT_SYSTEM_PROMPT, user_prompt).strip()
+        raw = self._llm.complete(INSIGHT_SYSTEM_PROMPT, user_prompt)
+        return _clean_insight(raw)
 
 
 def _default_follow_ups(plan: AnalysisPlan) -> list[str]:

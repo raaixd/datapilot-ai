@@ -1,5 +1,5 @@
 """
-Application database and persistence layer for DataPilot AI.
+Application database and persistence layer for VERIDEX.
 
 Provides SQLAlchemy 2.0 models, database engine/session lifecycle management,
 and repository abstractions for PostgreSQL (RDS) and SQLite (LOCAL_MODE).

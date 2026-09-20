@@ -1,4 +1,4 @@
-# DataPilot AI -- Intelligent Business Analytics
+# VERIDEX — Cloud-Native AI Data Analyst Platform
 
 Ask a business question in plain English about a CSV or Excel file you
 upload, and get back the SQL that answers it, computed metrics, a chart,
@@ -7,7 +7,7 @@ safety layer that never executes anything but a validated, read-only
 `SELECT`, and that asks for clarification instead of guessing when a
 question is genuinely ambiguous.
 
-> (MIT License). See [`NOTICE.md`](NOTICE.md) and
+> (MIT License). See [`NOTICE.md`](NOTICE.md)
 
 ## What problem this solves
 
@@ -15,7 +15,7 @@ A basic "upload a file and chat with an AI about it" workflow has two
 recurring failure modes: it either (a) lets the model write and run
 arbitrary SQL against your data with no safety net, or (b) has the model
 eyeball a sample of the data and free-associate an answer with no way to
-check where the numbers came from. DataPilot AI is built around closing
+check where the numbers came from. VERIDEX is built around closing
 both gaps:
 
 - **Every numeric answer is traceable to an executed, validated SQL query**

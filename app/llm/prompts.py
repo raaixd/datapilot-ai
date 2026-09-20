@@ -98,11 +98,17 @@ Only reference tables and columns that exist in the provided schema.
 
 
 def build_sql_correction_prompt(
-    failing_sql: str, error_message: str, schema_description: str, question: str = ""
+    failing_sql: str,
+    error_message: str,
+    schema_description: str,
+    question: str = "",
+    error_type: str | None = None,
 ) -> str:
+    type_line = f"ERROR_TYPE: {error_type}\n" if error_type else ""
     return (
         f"TASK: correct_sql\n"
         f"QUESTION: {question}\n"
+        f"{type_line}"
         f"FAILING_SQL:\n{failing_sql}\n"
         f"ERROR:\n{error_message}\n"
         f"SCHEMA:\n{schema_description}\n"

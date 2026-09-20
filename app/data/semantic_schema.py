@@ -318,3 +318,12 @@ class SemanticSchemaGenerator:
             target_variable_candidates=target_candidates,
             suspicious_columns=suspicious_cols,
         )
+
+
+def extract_semantic_schema(
+    df: pd.DataFrame,
+    profile: DataProfile | None = None,
+    dataset_id: str = "dataset",
+) -> SemanticSchema:
+    """Convenience helper to generate a SemanticSchema."""
+    return SemanticSchemaGenerator().generate(df=df, dataset_id=dataset_id, profile=profile)

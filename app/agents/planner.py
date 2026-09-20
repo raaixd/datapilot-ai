@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.data.database import TableSchema
 from app.llm.base import LLMClient
@@ -89,19 +90,27 @@ class AnalysisPlan:
             raise PlanValidationError("; ".join(errors))
 
 
-def describe_schema_text(schema: dict[str, TableSchema]) -> str:
+def describe_schema_text(schema: dict[str, TableSchema], semantic_schema: Any = None) -> str:
     """Render the schema in the compact pipe format the mock client (and the
-    real-LLM prompt) both parse. Kept as plain text, not JSON, to keep the
-    prompt short and cheap."""
+    real-LLM prompt) both parse. Includes semantic type metadata when provided."""
     lines = []
+    sem_cols = {c.name: c for c in semantic_schema.columns} if semantic_schema and hasattr(semantic_schema, "columns") else {}
     for table in schema.values():
         lines.append(f"TABLE {table.name}: ({table.row_count} rows)")
         for col_name, col_type in table.columns:
+            sc = sem_cols.get(col_name)
+            sem_info = f", semantic_type={sc.semantic_type}" if sc and sc.semantic_type != "unknown" else ""
+            flags = []
+            if sc and sc.is_identifier:
+                flags.append("identifier")
+            if sc and sc.is_potential_target:
+                flags.append("target")
+            flag_str = f" [{', '.join(flags)}]" if flags else ""
             samples = table.column_samples.get(col_name) if table.column_samples else None
             if samples:
-                lines.append(f"- {col_name} ({col_type}) values: [{', '.join(samples)}]")
+                lines.append(f"- {col_name} ({col_type}{sem_info}){flag_str} values: [{', '.join(samples)}]")
             else:
-                lines.append(f"- {col_name} ({col_type})")
+                lines.append(f"- {col_name} ({col_type}{sem_info}){flag_str}")
     return "\n".join(lines) if lines else "(no tables loaded)"
 
 
@@ -109,8 +118,13 @@ class AnalysisPlanner:
     def __init__(self, llm_client: LLMClient):
         self._llm = llm_client
 
-    def plan(self, question: str, schema: dict[str, TableSchema]) -> AnalysisPlan:
-        schema_text = describe_schema_text(schema)
+    def plan(
+        self,
+        question: str,
+        schema: dict[str, TableSchema],
+        semantic_schema: Any = None,
+    ) -> AnalysisPlan:
+        schema_text = describe_schema_text(schema, semantic_schema=semantic_schema)
         retrieved = retrieve(question, schema)
         user_prompt = build_planner_user_prompt(question, schema_text, retrieved.to_prompt_text())
         raw = self._llm.complete(PLANNER_SYSTEM_PROMPT, user_prompt)
