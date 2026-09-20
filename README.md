@@ -336,118 +336,134 @@ out of the box with **zero API keys** using `LLM_PROVIDER=mock`.
 
 ## Running it
 
-**Backend API** (default port **8000**):
-```bash
-uvicorn app.api.main:app --reload
-# -> http://localhost:8000/docs
+### Local Startup Instructions
+
+VERIDEX can be run in full cloud-native local mode with **$0 AWS cost** (`LOCAL_MODE=true`):
+
+1. **Start the REST API Backend** (port **8000**):
+```powershell
+.\.venv\Scripts\Activate.ps1
+uvicorn app.api.main:app --reload --port 8000
+# -> Interactive Swagger docs: http://localhost:8000/docs
+# -> Live Health Probe: http://localhost:8000/health
+# -> Operational Metrics: http://localhost:8000/metrics
 ```
 
-**Frontend** (default port **8501**, in a second terminal):
-```bash
+2. **Start the VERIDEX Analytics Console** (port **8501**, in a second terminal):
+```powershell
+.\.venv\Scripts\Activate.ps1
 streamlit run frontend/streamlit_app.py
-# -> http://localhost:8501
+# -> Web UI: http://localhost:8501
 ```
 
-**Both with one command** (starts the API in the background, then the
-frontend in the foreground; Ctrl+C stops both):
+3. **Combined Startup** (macOS/Linux or Windows single command):
 ```bash
 bash scripts/run_all.sh          # macOS/Linux
 powershell scripts/run_all.ps1   # Windows
 ```
 
-**Docker (both services):**
-```bash
-docker-compose up --build
+---
+
+## VERIDEX End-to-End Product Workflow
+
+The Stage 5 console coordinates the full analytical lifecycle across 5 dedicated workspaces:
+
+```
+Upload Dataset ──► Create/Select Project ──► Dataset Processing ──► Dataset Profile
+                                                                          │
+  ┌───────────────────────────────────────────────────────────────────────┘
+  ▼
+Ask Analytical Question ──► Query Planning ──► Verified SQL Audit ──► Result & Metrics
+                                                                          │
+  ┌───────────────────────────────────────────────────────────────────────┘
+  ▼
+Grounded Insight ──► Plotly Visualization ──► 10-Section Report ──► Observability Telemetry
 ```
 
-**No-install CLI demo** (only needs pandas/numpy/reportlab/openpyxl --
-useful for a quick sanity check or an interview walkthrough; supports
-`.csv`, `.xlsx`, and `.xls`):
-```bash
-PYTHONPATH=. python3 scripts/demo_cli.py "What is the total revenue by region?"
-PYTHONPATH=. python3 scripts/demo_cli.py --file data/sample_ecommerce.csv "Rank items by sales amount"
-```
+### 1. How to Upload a Dataset & Organize Projects
+- Navigate to the **📁 Projects & Datasets** tab.
+- Create a new project workspace (e.g. `Q4 Revenue Review`) or select an existing one.
+- In the **Upload Dataset** card, drag and drop a `.csv`, `.xlsx`, or `.xls` file.
+- The backend stores the file in deterministic object storage (local S3 emulation), dispatches deterministic ingestion profiling, and extracts the full semantic schema.
 
-> **Windows note:** commands throughout this README use `python3` (macOS/Linux
-> convention). On Windows, use `python` instead, and set `PYTHONPATH` with
-> `set PYTHONPATH=.` (CMD) or `$env:PYTHONPATH="."` (PowerShell) before a
-> command, e.g. (CMD):
-> ```cmd
-> set PYTHONPATH=.
-> python scripts\demo_cli.py "What is the total revenue by region?"
-> ```
+### 2. How to Inspect Dataset Profiles & Data Quality
+- Open the **📊 Dataset Profile** tab.
+- Review overview metrics: row count, column count, storage size, duplicate records.
+- Inspect the **Semantic Schema Table**: column names, inferred semantic types (`numeric`, `categorical`, `timestamp`, `identifier`), null percentages, and statistical bounds.
+- Review **Data Quality Alerts**: categorized by severity (`warning`, `info`), identifying missing values, high cardinality, and outliers.
 
-## How the API and frontend relate
+### 3. How to Run an Analysis
+- Open the **🤖 AI Analyst** tab.
+- Enter a natural-language analytical question in the query input (or click one of the starter query chips).
+- Click **Analyze** (or press Enter).
+- VERIDEX parses the question, classifies intent, validates the query against the semantic schema, generates safe SQL, and executes it with self-correcting repair if needed.
 
-- **They are independent processes that do NOT need each other.** The
-  Streamlit app imports and calls the orchestrator directly, in-process --
-  it does not make HTTP requests to the FastAPI backend. You can run just
-  `streamlit run frontend/streamlit_app.py` with no backend running at all.
-- The FastAPI backend exists as a separate, stateless-per-process HTTP
-  interface to the *same* core, for programmatic/API consumers.
-- **If the backend is unavailable**, the Streamlit app is unaffected (see
-  above). If you're calling the API directly and it's down, requests will
-  simply fail to connect -- there is currently no separate "backend
-  unavailable" UI state in Streamlit, because it never depends on the
-  backend being up. This is a known simplification if you later change the
-  frontend to call the API over HTTP instead of in-process.
-- **How uploaded files are handled**: each API client gets an isolated
-  **session** (see [Database, thread, and session reliability](#database-thread-and-session-reliability)
-  and [Multi-user and session isolation](#multi-user-and-session-isolation)
-  below). `POST /upload` without a `session_id` creates a new session and
-  returns its ID; pass that ID on every subsequent `POST /query`.
-  Uploading again with the SAME `session_id` replaces that session's
-  current table. The Streamlit app behaves the same way per browser
-  session (via `st.session_state`, not the old global `st.cache_resource`
-  -- see the linked section for why that distinction matters).
-- **Resetting between datasets**: upload again with the same `session_id`
-  (API), or click "Use sample sales dataset" / upload a new file again
-  (Streamlit) -- the new file's table replaces the old one in that
-  session's database.
-- **Ending a session**: `DELETE /session/{session_id}` frees it
-  immediately; otherwise it expires automatically after
-  `SESSION_TTL_MINUTES` (default 120) of inactivity.
-- **Health check**: `GET /health` reports the configured LLM provider,
-  database backend, and the number of currently active sessions. Check
-  this first if a client can't get a sensible response from `/query`.
+### 4. How to Inspect Verified SQL & Audit Trail
+- In the **AI Analyst** results view, expand the **🔍 Executed SQL & Audit Trail** card.
+- Inspect the exact, read-only SQL query that was executed against the database.
+- Review query execution runtime (ms), LLM generation latency, self-correction repair attempts, and correction history.
+- Use the **Copy SQL** button to export the verified query.
 
-## Sample questions
+### 5. How to View Grounded Insights & Visualizations
+- Read the **Grounded Insight** banner directly above the data results, summarizing findings with strict mathematical fidelity to the executed query.
+- Examine key metrics cards (totals, averages, top performers).
+- View the **Recommended Visualization** (Plotly bar, line, or scatter chart) generated automatically when compatible with query output.
+- Inspect tabular records and download the result set as CSV.
 
-Against `data/sample_sales.csv` (columns: `order_date`, `region`,
-`product_category`, `customer_id`, `quantity`, `unit_price`, `revenue`):
+### 6. How to Generate Grounded Analytical Reports
+- Navigate to the **📑 Analytical Reports** tab.
+- Provide a report title and click **Compile Analytical Report**.
+- VERIDEX deterministically synthesizes all profile metadata, semantic schemas, and analysis runs into a comprehensive **10-section briefing document**:
+  1. Executive Summary
+  2. Dataset Overview
+  3. Data Hygiene & Quality Warnings
+  4. Column Semantics & Statistical Bounds
+  5. Core Analytical Findings
+  6. Verified Query Audit Trail
+  7. Visualizations & Distributions
+  8. Risk & Anomaly Assessment
+  9. Actionable Strategic Recommendations
+  10. Methodology & Data Governance
+- Download the generated report as **Markdown (`.md`)** or **JSON (`.json`)**.
 
-- "What is the total revenue?"
-- "What are the top 5 regions by revenue?"
-- "Which region has the highest revenue?"
-- "Show me the monthly revenue trend"
-- "Which product categories experienced declining sales?"
-- "Compare revenue between regions"
-- "How much data is missing?"
-- "Are there any duplicate rows?"
+### 7. How to Monitor Operational Observability
+- Navigate to the **📈 Operational Observability** tab.
+- Inspect live system telemetry from `GET /metrics` and `GET /ready`:
+  - Total HTTP request throughput and overall error rate (%)
+  - Active in-flight analyses and total self-correcting SQL repairs
+  - Latency SLA breakdown across sliding windows: `p50`, `p90`, `p99`, `avg`, `min`, `max`
+  - HTTP status code distribution (2xx, 4xx, 5xx)
+  - Endpoint traffic distribution across all API routes
 
-Against `data/sample_ecommerce.csv` (deliberately different column names --
-`transaction_date`, `sales_channel`, `item_name`, `units_sold`,
-`sales_amount` -- to demonstrate synonym-based matching):
+---
 
-- "What is the total sales amount?"
-- "Rank items by sales amount"
-- "Which item sold the most units?"
+## How the API and Frontend Relate
 
-Questions expected to be **refused rather than guessed at** (see
-[Known limitations](#known-limitations)):
+- **Production REST Client Architecture:** The frontend (`frontend/streamlit_app.py`) communicates with the FastAPI backend over HTTP using the typed `VeridexApiClient` (`frontend/api_client.py`).
+- **Seamless In-Process Fallback:** If the FastAPI backend is not running, the frontend gracefully falls back to in-process execution, enabling zero-config offline usage.
+- **Strict Separation of Concerns:** Presentation logic is strictly decoupled from storage, database execution, and LLM orchestration. All business logic remains centralized in the backend service.
 
-- "What is the total profit margin?" (no such column exists)
-- "What is the best-selling product category?" (ambiguous: revenue or
-  units? -- the app asks)
-- "What is the meaning of life?" (unrelated to the dataset)
+---
 
 ## Testing
 
-```bash
-pytest tests/ -v
+```powershell
+# Run the complete test suite
+.\.venv\Scripts\pytest -q
+
+# Run the 65-case deterministic analytical evaluation suite
+.\.venv\Scripts\python.exe -m eval.run_eval
+
+# Run the codebase linter
+.\.venv\Scripts\ruff check .
 ```
 
-As of this writing: **206 unit/integration tests, all passing.** Coverage
+As of Stage 5:
+- **351 unit, integration, and API tests passing** (`pytest -q`)
+- **34 subtests passing**
+- **Evaluation suite: 65/65 passed (100%)** (`eval.run_eval`)
+- **Ruff linter: clean (0 errors)**
+- **AWS paid resources created: 0 ($0 charges)**
 includes the profiler, the SQL validator (including CTE handling and
 adversarial/injection cases), table-identifier injection resistance
 (`tests/test_table_name_injection.py` -- proves a malicious "filename"

@@ -8,6 +8,7 @@ executed SQL query results.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -146,7 +147,7 @@ def generate_analytical_report(
 ) -> AnalyticalReport:
     """Deterministically compile a 10-section grounded analytical report."""
     now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
-    rid = report_id or f"rep-{int(datetime.now(UTC).timestamp())}"
+    rid = report_id or f"rep-{int(datetime.now(UTC).timestamp())}-{uuid.uuid4().hex[:6]}"
     results = analysis_results or []
 
     # 1. Overview
