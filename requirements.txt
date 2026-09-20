@@ -22,12 +22,42 @@ plotly>=5.20
 # Testing (tests/, eval/):
 pytest>=8.0
 
-# Optional: real LLM provider (only needed if LLM_PROVIDER=anthropic or groq)
+# ============================================================
+# LLM Providers
+# ============================================================
+
+# Primary LLM provider (cloud-native)
+google-generativeai>=0.8    # Gemini Flash/Pro
+
+# Fallback LLM provider (and existing Groq support)
+openai>=1.0                  # Used by GroqLLMClient (OpenAI-compatible endpoint)
+
+# Optional: Anthropic Claude
 anthropic>=0.25
-openai>=1.0
 
-# Optional: swap DATABASE_BACKEND=duckdb instead of the default sqlite
-# duckdb>=0.10
+# ============================================================
+# Cloud / AWS
+# ============================================================
 
+boto3>=1.34                  # AWS SDK — S3, Lambda, CloudWatch
+watchtower>=3.0              # CloudWatch log handler for Python logging
+
+# ============================================================
+# Database / Migrations
+# ============================================================
+
+sqlalchemy>=2.0              # ORM for PostgreSQL/RDS metadata database
+alembic>=1.13                # Database migrations
+psycopg2-binary>=2.9         # PostgreSQL adapter (production/RDS)
+
+# ============================================================
+# Optional analytical backends
+# ============================================================
+
+# duckdb>=0.10               # Swap DATABASE_BACKEND=duckdb instead of sqlite
+
+# ============================================================
 # Lint
+# ============================================================
+
 ruff>=0.4

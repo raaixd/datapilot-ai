@@ -8,12 +8,20 @@ __pycache__/
 .venv/
 venv/
 
-# Local databases and generated reports -- never commit these
+# Local databases, storage emulation and generated reports -- never commit these
 *.db
 *.sqlite
 *.sqlite3
+data/*.db
 data/datapilot.db
+data/datapilot_meta.db
+data/local_s3/
 outputs/
+
+# Terraform / cloud credentials
+.terraform/
+*.tfstate
+*.tfstate.backup
 
 .DS_Store
 .idea/
