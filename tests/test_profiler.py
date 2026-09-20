@@ -85,6 +85,59 @@ class TestDataProfiler(unittest.TestCase):
         profile = self.profiler.profile(df)
         json.dumps(profile.to_dict())  # should not raise
 
+    def test_enhanced_numeric_quantiles_and_outliers(self):
+        # 1 to 10 with extreme outlier 1000.0
+        values = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 1000.0]
+        df = pd.DataFrame({"metric": values})
+        profile = self.profiler.profile(df)
+        col = next(c for c in profile.columns if c.name == "metric")
+
+        self.assertEqual(col.median, 6.0)
+        self.assertIsNotNone(col.q25)
+        self.assertIsNotNone(col.q75)
+        self.assertGreater(col.outlier_count, 0)
+
+    def test_zero_and_negative_counts(self):
+        df = pd.DataFrame({"balance": [10.0, 0.0, -5.0, 0.0, -20.0]})
+        profile = self.profiler.profile(df)
+        col = next(c for c in profile.columns if c.name == "balance")
+
+        self.assertEqual(col.zero_count, 2)
+        self.assertEqual(col.zero_pct, 40.0)
+        self.assertEqual(col.negative_count, 2)
+        self.assertEqual(col.negative_pct, 40.0)
+
+    def test_datetime_range_metrics(self):
+        df = pd.DataFrame({"event_time": ["2024-01-01", "2024-01-15", "2024-01-31"]})
+        profile = self.profiler.profile(df)
+        col = next(c for c in profile.columns if c.name == "event_time")
+
+        self.assertEqual(col.inferred_type, "datetime")
+        self.assertIsNotNone(col.min_date)
+        self.assertIsNotNone(col.max_date)
+        self.assertEqual(col.date_range_days, 30)
+
+    def test_text_length_and_empty_percentage(self):
+        df = pd.DataFrame({"notes": ["Hello world", "   ", "Testing 123", "Short"]})
+        profile = self.profiler.profile(df)
+        col = next(c for c in profile.columns if c.name == "notes")
+
+        self.assertIsNotNone(col.avg_text_length)
+        self.assertGreater(col.avg_text_length, 0)
+        self.assertEqual(col.empty_text_pct, 25.0)  # 1 out of 4 is whitespace
+
+    def test_general_memory_and_null_row_metrics(self):
+        df = pd.DataFrame({
+            "a": [1, None, 3],
+            "b": ["x", "y", "z"],
+        })
+        profile = self.profiler.profile(df)
+
+        self.assertGreater(profile.memory_bytes, 0)
+        self.assertGreaterEqual(profile.memory_mb, 0.0)
+        self.assertEqual(profile.null_row_count, 1)  # row index 1 has a null in col 'a'
+
 
 if __name__ == "__main__":
     unittest.main()
+
