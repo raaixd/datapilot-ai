@@ -33,13 +33,13 @@ both gaps:
 - [Visual Tour & Walkthrough](#visual-tour--walkthrough)
 - [Features](#features)
 - [Architecture](#architecture)
+- [Stage 6 Cloud-Native Architecture & IaC](#stage-6-cloud-native-architecture--iac)
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
 - [Installation](#installation)
 - [Environment variables](#environment-variables)
 - [Running it](#running-it)
 - [How the API and frontend relate](#how-the-api-and-frontend-relate)
-- [Sample questions](#sample-questions)
 - [Testing](#testing)
 - [Evaluation](#evaluation)
 - [What has and hasn't been executed](#what-has-and-hasnt-been-executed-in-development)
@@ -211,6 +211,135 @@ Some intents (`missing_data`, `duplicate_analysis`, `descriptive_stats`)
 skip the SQL path entirely -- the orchestrator answers them straight from
 the already-computed data profile, since there's nothing to query for
 those.
+
+## Stage 6 Cloud-Native Architecture & IaC
+
+VERIDEX supports dual-mode deployment: a zero-cost, fully offline local development workflow (`LOCAL_MODE=true`), and an event-driven AWS cloud-native architecture (`LOCAL_MODE=false`).
+
+```
+                    ┌──────────────────┐
+                    │  VERIDEX UI      │
+                    │   Streamlit      │
+                    └────────┬─────────┘
+                             │ HTTP / API Client
+                             ▼
+                    ┌──────────────────┐
+                    │ FastAPI Backend  │
+                    └────────┬─────────┘
+                             │
+          ┌──────────────────┼──────────────────┐
+          │                  │                  │
+          ▼                  ▼                  ▼
+      S3 Storage         RDS PostgreSQL     AI Analyst
+    (raw/processed/      (Pooled Engine,   (Self-Correcting
+   metadata/reports)      pre-ping, SSL)    SQL & RAG)
+          │                  │                  │
+          ▼                  │                  ▼
+      S3 Event              │             SQL / Analysis
+  (ObjectCreated)            │
+          │                  │
+          ▼                  │
+       Lambda ───────────────┘
+  (Dataset Processor:
+   Validation, Profile,
+   Semantic Schema)
+
+                    ┌──────────────────┐
+                    │   CloudWatch     │
+                    │ Logs + Metrics   │
+                    │ (Structured JSON)│
+                    └──────────────────┘
+```
+
+> [!IMPORTANT]
+> **Stage 6 Deployment Safety Notice**:
+> In accordance with safety rules, **Stage 6 does NOT provision or deploy any live AWS infrastructure**. All Terraform code and AWS adapters are written, syntax-checked, and validated with unit tests using mocks.
+> - **AWS resources created:** 0
+> - **AWS charges incurred:** $0.00
+
+### Local Mode vs. Cloud Deployment
+
+| Dimension | Local Mode (`LOCAL_MODE=true`) | Cloud-Native Mode (`LOCAL_MODE=false`) |
+|---|---|---|
+| **Storage** | Local filesystem / emulated S3 in `data/` | Amazon S3 bucket (`AWS_S3_BUCKET`) |
+| **Ingestion** | In-process synchronous profiling pipeline | Asynchronous event-driven AWS Lambda via S3 `ObjectCreated` |
+| **Relational DB** | SQLite (`sqlite:///data/veridex.db`) | AWS RDS PostgreSQL (`postgresql+psycopg://...`) |
+| **Observability** | Structured console logs & in-memory metrics | Structured JSON logs dispatched to Amazon CloudWatch Logs |
+| **AWS Credentials** | Not required (100% offline) | Standard AWS Credential Provider Chain (IAM Role / Profile) |
+
+### Deterministic S3 Object Storage Structure
+
+The storage abstraction (`app/storage/`) enforces deterministic prefix hierarchies across both local disk and Amazon S3:
+
+- `raw/`: Raw uploaded dataset objects (CSV/XLSX) before validation. Key format: `raw/{dataset_id}_{filename}`.
+- `processed/`: Validated, cleaned parquet or structured files ready for querying.
+- `metadata/`: JSON profiles and semantic schemas extracted by the processor. Key format: `metadata/{dataset_id}_profile.json`.
+- `reports/`: Exported analytical briefing documents (Markdown/JSON/PDF). Key format: `reports/{report_id}.md`.
+
+### Event-Driven Ingestion with AWS Lambda
+
+When a dataset is uploaded in cloud mode:
+1. File lands in S3 bucket under `raw/`.
+2. S3 triggers an `ObjectCreated:Put` event.
+3. `lambdas/dataset_processor/handler.py` receives the event, extracts bucket/key, and dispatches validation, statistical profiling, and semantic schema generation.
+4. Extracted metadata is persisted to `metadata/` and the dataset state is updated to `READY`.
+5. Handler is idempotent and supports direct synthetic event invocation for local and automated testing.
+
+### Production Database Safety (PostgreSQL)
+
+The persistence layer (`app/db/session.py`) provides production-grade SQLAlchemy connection management for AWS RDS PostgreSQL:
+- **Connection Health Checks:** `pool_pre_ping=True` proactively detects and drops stale connections.
+- **Connection Sizing:** Tunable `pool_size` (default: 5) and `max_overflow` (default: 10).
+- **Recycling & Timeouts:** `pool_recycle=1800` (30 minutes) prevents connection drops behind AWS RDS proxy or network timeouts; `pool_timeout=30` prevents worker thread deadlocks.
+- **Session Lifecycle:** Thread-safe context managers guarantee automatic rollback on failure and release connections back to the pool.
+
+### CloudWatch Observability
+
+- **Structured JSON Logging:** `app/core/logging_config.py` provides `JsonFormatter` capturing timestamp, level, logger, request ID, dataset ID, analysis ID, and execution latency.
+- **Fail-Safe Operation:** When `LOCAL_MODE=true`, CloudWatch handlers are completely bypassed with zero AWS calls. When `LOCAL_MODE=false`, CloudWatch logging attaches via `watchtower` with graceful fallback to console logging if the service is unreachable.
+
+### IAM Least Privilege
+
+Infrastructure security adheres strictly to least privilege (`infra/terraform/iam.tf`):
+- **API Execution Role:** Read/write scoped only to bucket prefixes `raw/*`, `processed/*`, `reports/*`; read-only on `metadata/*`; write access to CloudWatch log group `/veridex/api`. No `AdministratorAccess` or `AmazonS3FullAccess`.
+- **Lambda Execution Role:** Read-only on `raw/*`; write scoped to `processed/*` and `metadata/*`; write access to CloudWatch log group `/veridex/lambda/dataset-processor`.
+
+### Infrastructure as Code (Terraform)
+
+Infrastructure definitions reside in `infra/terraform/`:
+- `versions.tf`: Minimum Terraform (>= 1.5.0) and AWS Provider (~> 5.0).
+- `providers.tf`: AWS provider with automated resource tagging (`Project = "veridex"`, `ManagedBy = "terraform"`).
+- `variables.tf`: Parameterized configuration with safe defaults (region, bucket name, db tier, retention).
+- `s3.tf`: S3 bucket with server-side encryption (AES256), versioning, public access block, lifecycle rules, and Lambda event notification.
+- `iam.tf`: Granular IAM roles and least-privilege policies.
+- `rds.tf`: RDS PostgreSQL 16 instance with gp3 encrypted storage, dedicated subnet group, and security groups.
+- `lambda.tf`: Python 3.11 dataset processor Lambda function with 512 MB memory and 300-second timeout.
+- `cloudwatch.tf`: CloudWatch log groups with configurable retention (default: 30 days).
+- `outputs.tf`: Exported resource identifiers and connection strings.
+- `README.md`: Complete local validation and syntax-checking instructions.
+
+#### How to Validate Terraform Locally
+
+```bash
+cd infra/terraform
+
+# Format check
+terraform fmt -check
+
+# Initialize with local-only validation (no backend required)
+terraform init -backend=false
+
+# Validate configuration syntax and schema
+terraform validate
+```
+
+#### AWS Prerequisites for Future Deployment
+
+To deploy VERIDEX to AWS in a future stage:
+1. **AWS CLI:** Installed and configured (`aws configure` or `AWS_PROFILE`).
+2. **IAM Privileges:** Deployer role with permissions to create S3, IAM, Lambda, RDS, and CloudWatch resources.
+3. **Database Password:** Stored securely in AWS Systems Manager Parameter Store or AWS Secrets Manager.
+4. Set `LOCAL_MODE=false` in application environment variables.
 
 ## Tech stack
 
@@ -458,12 +587,13 @@ Grounded Insight ──► Plotly Visualization ──► 10-Section Report ─�
 .\.venv\Scripts\ruff check .
 ```
 
-As of Stage 5:
-- **351 unit, integration, and API tests passing** (`pytest -q`)
+As of Stage 6:
+- **375 unit, integration, storage, lambda, and database tests passing** (`pytest -q`)
 - **34 subtests passing**
 - **Evaluation suite: 65/65 passed (100%)** (`eval.run_eval`)
 - **Ruff linter: clean (0 errors)**
 - **AWS paid resources created: 0 ($0 charges)**
+- **Working branch: `feature/stage6-aws-cloud-native` (isolated, unmerged)**
 includes the profiler, the SQL validator (including CTE handling and
 adversarial/injection cases), table-identifier injection resistance
 (`tests/test_table_name_injection.py` -- proves a malicious "filename"

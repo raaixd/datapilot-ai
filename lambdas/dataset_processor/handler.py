@@ -33,30 +33,66 @@ def parse_s3_key(key: str) -> tuple[str, str, str]:
 
     Expected format: `raw/{project_id}/{dataset_id}/{filename}`
     """
+    if not key or not isinstance(key, str):
+        raise ValueError("Invalid S3 raw key: key must be a non-empty string.")
+
     decoded_key = urllib.parse.unquote_plus(key)
     parts = decoded_key.split("/", 3)
-    if len(parts) != 4 or parts[0] != "raw":
+    if len(parts) != 4 or parts[0] != "raw" or not parts[1] or not parts[2] or not parts[3]:
         raise ValueError(
             f"Invalid S3 raw key format '{decoded_key}'. Expected 'raw/{{project_id}}/{{dataset_id}}/{{filename}}'."
         )
     return parts[1], parts[2], parts[3]
 
 
-def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
-    """Lambda entrypoint for S3 ObjectCreated events and direct invocation."""
-    logger.info('{"event": "lambda_invocation_started", "payload_type": "%s"}', type(event).__name__)
+def lambda_handler(event: dict[str, Any] | Any, context: Any = None) -> dict[str, Any]:
+    """Lambda entrypoint for S3 ObjectCreated events and direct invocation.
+
+    Returns:
+        A dictionary with statusCode and JSON body summarizing processing outcomes.
+    """
+    if not isinstance(event, dict):
+        logger.warning('{"event": "invalid_event_type", "type": "%s"}', type(event).__name__)
+        return {
+            "statusCode": 400,
+            "body": json.dumps({"error": "Event payload must be a JSON object", "error_code": "MALFORMED_EVENT"}),
+        }
+
+    logger.info('{"event": "lambda_invocation_started", "payload_keys": %s}', list(event.keys()))
 
     service = IngestionService()
-    results = []
+    results: list[dict[str, Any]] = []
 
     # Case 1: Standard S3 Event Notification
     if "Records" in event:
-        for record in event["Records"]:
+        records = event.get("Records")
+        if not isinstance(records, list) or len(records) == 0:
+            logger.warning('{"event": "empty_or_invalid_records_list"}')
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "'Records' must be a non-empty list", "error_code": "MALFORMED_EVENT"}),
+            }
+
+        for record in records:
+            if not isinstance(record, dict):
+                results.append({"status": "FAILED", "error": "Malformed record", "error_code": "MALFORMED_RECORD"})
+                continue
+
             # Only process S3 event records
             if record.get("eventSource") == "aws:s3":
-                s3_info = record["s3"]
-                key = s3_info["object"]["key"]
-                bucket = s3_info["bucket"]["name"]
+                s3_info = record.get("s3")
+                if not isinstance(s3_info, dict):
+                    results.append({"status": "FAILED", "error": "Missing S3 block", "error_code": "MISSING_S3_BLOCK"})
+                    continue
+
+                bucket_info = s3_info.get("bucket", {})
+                object_info = s3_info.get("object", {})
+                key = object_info.get("key")
+                bucket = bucket_info.get("name")
+
+                if not bucket or not key:
+                    results.append({"status": "FAILED", "error": "Missing bucket or key", "error_code": "MISSING_BUCKET_OR_KEY"})
+                    continue
 
                 try:
                     project_id, dataset_id, filename = parse_s3_key(key)
@@ -76,38 +112,60 @@ def lambda_handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]
                             "cols": dataset.column_count,
                         }
                     )
+                except ValueError as val_err:
+                    logger.error('{"event": "invalid_s3_key", "key": "%s", "error": "%s"}', key, str(val_err))
+                    results.append({"key": key, "status": "FAILED", "error": str(val_err), "error_code": "INVALID_KEY"})
                 except Exception as exc:
                     logger.error(
                         '{"event": "record_processing_failed", "key": "%s", "error": "%s"}',
                         key,
                         str(exc),
                     )
-                    results.append({"key": key, "status": "FAILED", "error": str(exc)})
+                    results.append({"key": key, "status": "FAILED", "error": str(exc), "error_code": "PROCESSING_ERROR"})
+            else:
+                logger.info('{"event": "skipped_non_s3_record", "source": "%s"}', record.get("eventSource"))
 
     # Case 2: Direct invocation payload (e.g. from local dispatcher or step function)
     elif "project_id" in event and "dataset_id" in event:
-        project_id = event["project_id"]
-        dataset_id = event["dataset_id"]
+        project_id = str(event["project_id"]).strip()
+        dataset_id = str(event["dataset_id"]).strip()
+
+        if not project_id or not dataset_id:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "project_id and dataset_id must be non-empty strings", "error_code": "INVALID_PARAMETERS"}),
+            }
+
         logger.info(
             '{"event": "direct_invocation", "project_id": "%s", "dataset_id": "%s"}',
             project_id,
             dataset_id,
         )
-        dataset = service.process_dataset(project_id=project_id, dataset_id=dataset_id)
-        results.append(
-            {
-                "dataset_id": dataset_id,
-                "status": dataset.processing_status,
-                "rows": dataset.row_count,
-                "cols": dataset.column_count,
+        try:
+            dataset = service.process_dataset(project_id=project_id, dataset_id=dataset_id)
+            results.append(
+                {
+                    "dataset_id": dataset_id,
+                    "status": dataset.processing_status,
+                    "rows": dataset.row_count,
+                    "cols": dataset.column_count,
+                }
+            )
+        except Exception as exc:
+            logger.error('{"event": "direct_invocation_failed", "error": "%s"}', str(exc))
+            return {
+                "statusCode": 500,
+                "body": json.dumps({"error": str(exc), "error_code": "PROCESSING_ERROR", "dataset_id": dataset_id}),
             }
-        )
 
     else:
         logger.warning('{"event": "unrecognized_event_payload", "keys": %s}', list(event.keys()))
         return {
             "statusCode": 400,
-            "body": json.dumps({"error": "Unrecognized event format. Expected S3 notification or project_id/dataset_id."}),
+            "body": json.dumps({
+                "error": "Unrecognized event format. Expected S3 notification or project_id/dataset_id.",
+                "error_code": "UNRECOGNIZED_EVENT",
+            }),
         }
 
     return {

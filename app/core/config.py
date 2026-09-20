@@ -84,12 +84,18 @@ class Settings:
             else "sqlite:///data/veridex_meta.db",
         )
     )
+    db_pool_size: int = field(default_factory=lambda: int(os.getenv("DB_POOL_SIZE", "10")))
+    db_max_overflow: int = field(default_factory=lambda: int(os.getenv("DB_MAX_OVERFLOW", "20")))
+    db_pool_recycle: int = field(default_factory=lambda: int(os.getenv("DB_POOL_RECYCLE", "1800")))
+    db_pool_timeout: int = field(default_factory=lambda: int(os.getenv("DB_POOL_TIMEOUT", "30")))
 
     # ------------------------------------------------------------------ #
     # AWS configuration                                                   #
     # ------------------------------------------------------------------ #
     aws_region: str = field(default_factory=lambda: os.getenv("AWS_REGION", "us-east-1"))
     aws_s3_bucket: str = field(default_factory=lambda: os.getenv("AWS_S3_BUCKET", ""))
+    aws_profile: str | None = field(default_factory=lambda: os.getenv("AWS_PROFILE"))
+    aws_s3_endpoint_url: str | None = field(default_factory=lambda: os.getenv("AWS_S3_ENDPOINT_URL"))
     # Explicit credentials — only used when not running inside AWS with an IAM role.
     # Never commit values. Prefer IAM roles in production.
     aws_access_key_id: str | None = field(default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID"))

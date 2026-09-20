@@ -28,6 +28,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +103,40 @@ class LocalStorageBackend:
             logger.warning("LocalStorage DELETE failed key=%s: %s", key, exc)
 
     def list_keys_with_prefix(self, prefix: str) -> list[str]:
-        """List all keys under a given prefix (useful for tests and dev tooling).
-        Not part of the StorageBackend Protocol but available locally.
-        """
-        prefix_path = self._root / prefix
+        """List all keys under a given prefix (useful for tests and dev tooling)."""
+        clean_prefix = prefix.strip("/").replace("/", os.sep)
+        prefix_path = self._root / clean_prefix if clean_prefix else self._root
         if not prefix_path.exists():
             return []
+        if prefix_path.is_file():
+            return [str(prefix_path.relative_to(self._root)).replace(os.sep, "/")]
         return [
             str(p.relative_to(self._root)).replace(os.sep, "/")
             for p in prefix_path.rglob("*")
             if p.is_file()
         ]
+
+    def list_objects(self, prefix: str = "") -> list[str]:
+        """List all object keys matching the given prefix."""
+        return self.list_keys_with_prefix(prefix)
+
+    def get_object_metadata(self, key: str) -> dict[str, Any]:
+        """Retrieve metadata for the local object."""
+        path = self._resolve(key)
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"No object found at storage key '{key}'.")
+        stat = path.stat()
+        content_type = "application/octet-stream"
+        if key.endswith(".csv"):
+            content_type = "text/csv"
+        elif key.endswith(".json"):
+            content_type = "application/json"
+        elif key.endswith(".parquet"):
+            content_type = "application/vnd.apache.parquet"
+
+        return {
+            "key": key,
+            "size_bytes": stat.st_size,
+            "content_type": content_type,
+            "last_modified": stat.st_mtime,
+        }

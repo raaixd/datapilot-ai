@@ -8,7 +8,6 @@ Configured from Settings.database_url (defaults to sqlite:///data/datapilot_meta
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -62,10 +61,19 @@ def get_engine(database_url: str | None = None) -> Engine:
 
     else:
         # PostgreSQL / RDS configuration
+        settings = get_settings()
         engine_kwargs["pool_pre_ping"] = True
-        engine_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "10"))
-        engine_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+        engine_kwargs["pool_size"] = settings.db_pool_size
+        engine_kwargs["max_overflow"] = settings.db_max_overflow
+        engine_kwargs["pool_recycle"] = settings.db_pool_recycle
+        engine_kwargs["pool_timeout"] = settings.db_pool_timeout
         engine = create_engine(url, **engine_kwargs)
+        logger.info(
+            "Created PostgreSQL engine (pool_size=%d, max_overflow=%d, pool_recycle=%ds)",
+            settings.db_pool_size,
+            settings.db_max_overflow,
+            settings.db_pool_recycle,
+        )
 
     if database_url is None:
         _engine = engine

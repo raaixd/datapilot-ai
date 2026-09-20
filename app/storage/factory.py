@@ -33,16 +33,20 @@ def build_storage_backend(
     aws_region: str = "us-east-1",
     aws_access_key_id: str | None = None,
     aws_secret_access_key: str | None = None,
+    aws_profile: str | None = None,
+    s3_endpoint_url: str | None = None,
 ) -> StorageBackend:
     """Build and return the appropriate storage backend.
 
     Args:
-        local_mode:          True for local filesystem (development).
-        local_storage_root:  Root directory for local storage.
-        aws_s3_bucket:       S3 bucket name (production only).
-        aws_region:          AWS region (production only).
-        aws_access_key_id:   Explicit AWS key (prefer IAM roles instead).
+        local_mode:            True for local filesystem (development).
+        local_storage_root:    Root directory for local storage.
+        aws_s3_bucket:         S3 bucket name (production only).
+        aws_region:            AWS region (production only).
+        aws_access_key_id:     Explicit AWS key (prefer IAM roles instead).
         aws_secret_access_key: Explicit AWS secret (prefer IAM roles instead).
+        aws_profile:           AWS named profile (optional).
+        s3_endpoint_url:       Custom S3 endpoint URL (LocalStack/MinIO).
 
     Returns:
         A StorageBackend instance (LocalStorageBackend or S3StorageBackend).
@@ -61,6 +65,8 @@ def build_storage_backend(
         region=aws_region,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
+        aws_profile=aws_profile,
+        endpoint_url=s3_endpoint_url,
     )
     logger.info("Storage: S3StorageBackend (bucket=%s, region=%s)", aws_s3_bucket, aws_region)
     return backend  # type: ignore[return-value]
@@ -79,4 +85,6 @@ def build_storage_backend_from_settings(settings=None) -> StorageBackend:
         aws_region=settings.aws_region,
         aws_access_key_id=settings.aws_access_key_id,
         aws_secret_access_key=settings.aws_secret_access_key,
+        aws_profile=settings.aws_profile,
+        s3_endpoint_url=settings.aws_s3_endpoint_url,
     )

@@ -105,3 +105,55 @@ class TestLambdaProcessor:
         assert response["statusCode"] == 400
         body = json.loads(response["body"])
         assert "error" in body
+        assert body["error_code"] == "UNRECOGNIZED_EVENT"
+
+    def test_non_dict_event_returns_400(self):
+        response = lambda_handler("not-a-dict", None)
+        assert response["statusCode"] == 400
+        body = json.loads(response["body"])
+        assert body["error_code"] == "MALFORMED_EVENT"
+
+    def test_empty_records_list_returns_400(self):
+        event = {"Records": []}
+        response = lambda_handler(event, None)
+        assert response["statusCode"] == 400
+        body = json.loads(response["body"])
+        assert body["error_code"] == "MALFORMED_EVENT"
+
+    def test_missing_bucket_or_key_in_record(self):
+        event = {
+            "Records": [
+                {
+                    "eventSource": "aws:s3",
+                    "s3": {
+                        "bucket": {},
+                        "object": {},
+                    },
+                }
+            ]
+        }
+        response = lambda_handler(event, None)
+        assert response["statusCode"] == 200
+        body = json.loads(response["body"])
+        assert body["results"][0]["status"] == "FAILED"
+        assert body["results"][0]["error_code"] == "MISSING_BUCKET_OR_KEY"
+
+    def test_direct_invocation_empty_params_returns_400(self):
+        event = {"project_id": "   ", "dataset_id": ""}
+        response = lambda_handler(event, None)
+        assert response["statusCode"] == 400
+        body = json.loads(response["body"])
+        assert body["error_code"] == "INVALID_PARAMETERS"
+
+    @patch("lambdas.dataset_processor.handler.IngestionService")
+    def test_direct_invocation_processing_failure_returns_500(self, mock_service_cls):
+        mock_service = MagicMock()
+        mock_service_cls.return_value = mock_service
+        mock_service.process_dataset.side_effect = RuntimeError("Database connection dropped")
+
+        event = {"project_id": "p1", "dataset_id": "d1"}
+        response = lambda_handler(event, None)
+        assert response["statusCode"] == 500
+        body = json.loads(response["body"])
+        assert body["error_code"] == "PROCESSING_ERROR"
+        assert "Database connection dropped" in body["error"]

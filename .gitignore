@@ -15,6 +15,8 @@ venv/
 data/*.db
 data/datapilot.db
 data/datapilot_meta.db
+data/veridex.db
+data/veridex_meta.db
 data/local_s3/
 outputs/
 
