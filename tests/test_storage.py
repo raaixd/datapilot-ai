@@ -189,3 +189,36 @@ class TestStorageFactory:
         from app.storage.s3_storage import S3StorageBackend
         with pytest.raises(ValueError, match="AWS_S3_BUCKET"):
             S3StorageBackend(bucket="")
+
+
+# ---------------------------------------------------------------------------
+# list_objects and get_object_metadata
+# ---------------------------------------------------------------------------
+
+
+class TestListAndMetadata:
+    def test_list_objects_with_prefix(self, store):
+        store.put_object("raw/proj1/ds1/data.csv", b"csv data")
+        store.put_object("raw/proj1/ds2/sales.csv", b"sales data")
+        store.put_object("metadata/proj1/ds1/profile.json", b"{}")
+
+        raw_keys = store.list_objects(prefix="raw/proj1")
+        assert len(raw_keys) == 2
+        assert "raw/proj1/ds1/data.csv" in raw_keys
+        assert "raw/proj1/ds2/sales.csv" in raw_keys
+        assert "metadata/proj1/ds1/profile.json" not in raw_keys
+
+    def test_get_object_metadata_success(self, store):
+        key = "metadata/test.json"
+        data = b'{"version": 1}'
+        store.put_object(key, data, content_type="application/json")
+
+        meta = store.get_object_metadata(key)
+        assert meta["key"] == key
+        assert meta["size_bytes"] == len(data)
+        assert meta["content_type"] == "application/json"
+        assert "last_modified" in meta
+
+    def test_get_object_metadata_missing_key_raises(self, store):
+        with pytest.raises(FileNotFoundError):
+            store.get_object_metadata("nonexistent/key.csv")
