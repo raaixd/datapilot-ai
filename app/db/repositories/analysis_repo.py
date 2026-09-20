@@ -145,6 +145,46 @@ class AnalysisRepository(BaseRepository):
         self.session.flush()
         return insight
 
+    def create_analysis_query(
+        self,
+        analysis_id: str,
+        sql: str,
+        execution_time_ms: int = 0,
+        repair_count: int = 0,
+        status: str = "SUCCESS",
+        error: str | None = None,
+        correction_history: list[dict[str, Any]] | None = None,
+    ) -> AnalysisQuery:
+        return self.record_query(
+            analysis_run_id=analysis_id,
+            sql=sql,
+            execution_time_ms=execution_time_ms,
+            repair_count=repair_count,
+            status=status,
+            error=error,
+            correction_history=correction_history,
+        )
+
+    def create_analysis_result(
+        self,
+        analysis_id: str,
+        row_count: int = 0,
+        result_preview: list[dict[str, Any]] | None = None,
+        metrics: dict[str, Any] | None = None,
+        insight_text: str | None = None,
+        chart_type: str | None = None,
+        result_location: str | None = None,
+    ) -> AnalysisResultModel:
+        return self.record_result(
+            analysis_run_id=analysis_id,
+            row_count=row_count,
+            preview=result_preview,
+            metrics=metrics,
+            insight_text=insight_text,
+            chart_type=chart_type,
+            result_location=result_location,
+        )
+
     def list_insights(self, dataset_id: str | None = None, limit: int = 50) -> list[Insight]:
         stmt = select(Insight)
         if dataset_id:

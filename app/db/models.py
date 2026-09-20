@@ -176,6 +176,10 @@ class AnalysisRun(Base):
         "Insight", back_populates="analysis_run", cascade="all, delete-orphan"
     )
 
+    @property
+    def result(self) -> AnalysisResultModel | None:
+        return self.results[0] if self.results else None
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,

@@ -66,8 +66,12 @@ def build_storage_backend(
     return backend  # type: ignore[return-value]
 
 
-def build_storage_backend_from_settings(settings) -> StorageBackend:
+def build_storage_backend_from_settings(settings=None) -> StorageBackend:
     """Convenience wrapper: build backend from a Settings object."""
+    if settings is None:
+        from app.core.config import get_settings
+
+        settings = get_settings()
     return build_storage_backend(
         local_mode=settings.local_mode,
         local_storage_root=settings.local_storage_root,
